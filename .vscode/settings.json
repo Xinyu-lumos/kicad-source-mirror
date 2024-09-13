@@ -1,0 +1,13 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+    "cmake.configureArgs": [
+        "-DCMAKE_INSTALL_PREFIX=${workspaceFolder}/build/${buildType}/install",
+        
+        // "-DKICAD_SCRIPTING_WXPYTHON=OFF",
+        // "-DKICAD_INSTALL_DEMOS=ON",
+        "-DKICAD_USE_EGL=ON",
+        
+    ],
+    "cmake.generator": "Ninja"
+}

@@ -1,0 +1,52 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "gdb_release",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/install/bin/kicad", // 替换为你的可执行文件路径
+            "args": 
+            [
+
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Release/install/bin",
+            "environment": 
+            [
+
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb", // 替换为你系统上的 gdb 路径
+            "preLaunchTask": "compile_release",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "使用Intel风格的反汇编样式",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                // {
+                //     "description": "目标应用调用fork之后调式子进程",
+                //     "text": "set follow-folk-mode child",
+                //     "ignoreFailures": true
+                // },
+                // {
+                //     "description": "只调试父进程或者子进程的其中一个",
+                //     "text": "set detach-on-fork on",
+                //     "ignoreFailures": true
+                // }
+            ],
+            
+            "logging": {
+                "moduleLoad": false,
+                "trace": false
+            }
+        }
+    ],
+}
