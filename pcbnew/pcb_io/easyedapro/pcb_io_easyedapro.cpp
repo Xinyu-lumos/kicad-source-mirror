@@ -46,7 +46,6 @@
 #include <json_common.h>
 #include <core/json_serializers.h>
 #include <core/map_helpers.h>
-#include <string_utf8_map.h>
 
 
 struct PCB_IO_EASYEDAPRO::PRJ_DATA
@@ -100,7 +99,7 @@ bool PCB_IO_EASYEDAPRO::CanReadBoard( const wxString& aFileName ) const
 
 
 BOARD* PCB_IO_EASYEDAPRO::LoadBoard( const wxString& aFileName, BOARD* aAppendToMe,
-                                     const STRING_UTF8_MAP* aProperties, PROJECT* aProject )
+                                     const std::map<std::string, UTF8>* aProperties, PROJECT* aProject )
 {
     m_props = aProperties;
 
@@ -123,6 +122,7 @@ BOARD* PCB_IO_EASYEDAPRO::LoadBoard( const wxString& aFileName, BOARD* aAppendTo
     PCB_IO_EASYEDAPRO_PARSER parser( nullptr, nullptr );
 
     wxFileName fname( aFileName );
+    wxString   fpLibName = EASYEDAPRO::ShortenLibName( fname.GetName() );
 
     if( fname.GetExt() == wxS( "epro" ) || fname.GetExt() == wxS( "zip" ) )
     {
@@ -130,9 +130,9 @@ BOARD* PCB_IO_EASYEDAPRO::LoadBoard( const wxString& aFileName, BOARD* aAppendTo
 
         wxString pcbToLoad;
 
-        if( m_props && m_props->Exists( "pcb_id" ) )
+        if( m_props && m_props->contains( "pcb_id" ) )
         {
-            pcbToLoad = wxString::FromUTF8( aProperties->at( "pcb_id" ) );
+            pcbToLoad = wxString::FromUTF8( m_props->at( "pcb_id" ) );
         }
         else
         {
@@ -168,7 +168,71 @@ BOARD* PCB_IO_EASYEDAPRO::LoadBoard( const wxString& aFileName, BOARD* aAppendTo
             if( pcbUuid != pcbToLoad )
                 EASY_IT_CONTINUE;
 
-            std::vector<nlohmann::json> lines = EASYEDAPRO::ParseJsonLines( zip, name );
+            std::vector<nlohmann::json>* pcbLines = nullptr;
+
+            std::vector<std::vector<nlohmann::json>> lineBlocks =
+                    EASYEDAPRO::ParseJsonLinesWithSeparation( zip, name );
+
+            if( lineBlocks.empty() )
+                EASY_IT_CONTINUE;
+
+            if( lineBlocks.size() > 1 )
+            {
+                for( std::vector<nlohmann::json>& block : lineBlocks )
+                {
+                    wxString       docType;
+                    nlohmann::json headData;
+
+                    for( const nlohmann::json& line : block )
+                    {
+                        if( line.size() < 2 )
+                            continue;
+
+                        if( !line.at( 0 ).is_string() )
+                            continue;
+
+                        wxString lineType = line.at( 0 ).get<wxString>();
+
+                        if( lineType == wxS( "DOCTYPE" ) )
+                        {
+                            if( !line.at( 1 ).is_string() )
+                                continue;
+
+                            docType = line.at( 1 ).get<wxString>();
+                        }
+                        else if( lineType == wxS( "HEAD" ) )
+                        {
+                            if( !line.at( 1 ).is_object() )
+                                continue;
+
+                            headData = line.at( 1 );
+                        }
+                    }
+
+                    if( docType == wxS( "FOOTPRINT" ) )
+                    {
+                        wxString fpUuid = headData.at( "uuid" );
+                        wxString fpTitle = headData.at( "title" );
+
+                        FOOTPRINT* footprint = parser.ParseFootprint( project, fpUuid, block );
+
+                        if( !footprint )
+                            EASY_IT_CONTINUE;
+
+                        LIB_ID fpID = EASYEDAPRO::ToKiCadLibID( fpLibName, fpTitle );
+                        footprint->SetFPID( fpID );
+
+                        m_projectData->m_Footprints.emplace( fpUuid, footprint );
+                    }
+                    else if( docType == wxS( "PCB" ) )
+                    {
+                        pcbLines = &block;
+                    }
+                }
+            }
+
+            if( pcbLines == nullptr )
+                pcbLines = &lineBlocks[0];
 
             wxString           boardKey = pcbUuid + wxS( "_0" );
             wxScopedCharBuffer cb = boardKey.ToUTF8();
@@ -178,7 +242,7 @@ BOARD* PCB_IO_EASYEDAPRO::LoadBoard( const wxString& aFileName, BOARD* aAppendTo
                     get_def( m_projectData->m_Poured, boardPouredKey );
 
             parser.ParseBoard( m_board, project, m_projectData->m_Footprints,
-                               m_projectData->m_Blobs, boardPoured, lines,
+                               m_projectData->m_Blobs, boardPoured, *pcbLines,
                                EASYEDAPRO::ShortenLibName( fname.GetName() ) );
 
             EASY_IT_BREAK;
@@ -198,7 +262,7 @@ long long PCB_IO_EASYEDAPRO::GetLibraryTimestamp( const wxString& aLibraryPath )
 
 void PCB_IO_EASYEDAPRO::FootprintEnumerate( wxArrayString&  aFootprintNames,
                                             const wxString& aLibraryPath, bool aBestEfforts,
-                                            const STRING_UTF8_MAP* aProperties )
+                                            const std::map<std::string, UTF8>* aProperties )
 {
     wxFileName fname( aLibraryPath );
 
@@ -292,7 +356,7 @@ void PCB_IO_EASYEDAPRO::LoadAllDataFromProject( const wxString&       aProjectPa
                 }
             }
         }
-        else if( name.EndsWith( wxS( ".ecop" ) ) && EASYEDAPRO::IMPORT_POURED )
+        else if( name.EndsWith( wxS( ".ecop" ) ) && EASYEDAPRO::IMPORT_POURED_ECOP )
         {
             for( const nlohmann::json& line : lines )
             {
@@ -314,7 +378,7 @@ void PCB_IO_EASYEDAPRO::LoadAllDataFromProject( const wxString&       aProjectPa
 
 FOOTPRINT* PCB_IO_EASYEDAPRO::FootprintLoad( const wxString& aLibraryPath,
                                              const wxString& aFootprintName, bool aKeepUUID,
-                                             const STRING_UTF8_MAP* aProperties )
+                                             const std::map<std::string, UTF8>* aProperties )
 {
     fontconfig::FONTCONFIG::SetReporter( nullptr );
 

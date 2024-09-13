@@ -34,6 +34,7 @@
 #include <geometry/shape_rect.h>
 #include <geometry/shape_compound.h>
 #include <geometry/shape_null.h>
+#include <layer_range.h>
 #include <string_utils.h>
 #include <i18n_utility.h>
 #include <view/view.h>
@@ -102,7 +103,8 @@ PAD::PAD( FOOTPRINT* parent ) :
     SetDirty();
     m_effectiveBoundingRadius = 0;
 
-    m_zoneLayerOverrides.fill( ZLO_NONE );
+    for( PCB_LAYER_ID layer : LAYER_RANGE( F_Cu, B_Cu, BoardCopperLayerCount() ) )
+        m_zoneLayerOverrides[layer] = ZLO_NONE;
 }
 
 
@@ -182,6 +184,30 @@ bool PAD::Deserialize( const google::protobuf::Any &aContainer )
         SetLocalClearance( std::nullopt );
 
     return true;
+}
+
+
+void PAD::ClearZoneLayerOverrides()
+{
+    std::unique_lock<std::mutex> cacheLock( m_zoneLayerOverridesMutex );
+
+    for( PCB_LAYER_ID layer : LAYER_RANGE( F_Cu, B_Cu, BoardCopperLayerCount() ) )
+        m_zoneLayerOverrides[layer] = ZLO_NONE;
+}
+
+
+const ZONE_LAYER_OVERRIDE& PAD::GetZoneLayerOverride( PCB_LAYER_ID aLayer ) const
+{
+    static const ZONE_LAYER_OVERRIDE defaultOverride = ZLO_NONE;
+    auto it = m_zoneLayerOverrides.find( aLayer );
+    return it != m_zoneLayerOverrides.end() ? it->second : defaultOverride;
+}
+
+
+void PAD::SetZoneLayerOverride( PCB_LAYER_ID aLayer, ZONE_LAYER_OVERRIDE aOverride )
+{
+    std::unique_lock<std::mutex> cacheLock( m_zoneLayerOverridesMutex );
+    m_zoneLayerOverrides[aLayer] = aOverride;
 }
 
 
@@ -268,7 +294,7 @@ LSET PAD::UnplatedHoleMask()
 
 LSET PAD::ApertureMask()
 {
-    static LSET saved( F_Paste );
+    static LSET saved( { F_Paste } );
     return saved;
 }
 
@@ -341,10 +367,6 @@ bool PAD::FlashLayer( int aLayer, bool aOnlyCheckIfPermitted ) const
 
     if( GetAttribute() == PAD_ATTRIB::PTH && IsCopperLayer( aLayer ) )
     {
-        /// Heat sink pads always get copper
-        if( GetProperty() == PAD_PROP::HEATSINK )
-            return true;
-
         PADSTACK::UNCONNECTED_LAYER_MODE mode = m_padStack.UnconnectedLayerMode();
 
         if( mode == PADSTACK::UNCONNECTED_LAYER_MODE::KEEP_ALL )
@@ -364,16 +386,45 @@ bool PAD::FlashLayer( int aLayer, bool aOnlyCheckIfPermitted ) const
             static std::initializer_list<KICAD_T> types = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T,
                                                             PCB_PAD_T };
 
-            if( m_zoneLayerOverrides[ aLayer ] == ZLO_FORCE_FLASHED )
+            if( auto it = m_zoneLayerOverrides.find( static_cast<PCB_LAYER_ID>( aLayer ) );
+                it != m_zoneLayerOverrides.end() && it->second == ZLO_FORCE_FLASHED )
+            {
                 return true;
+            }
             else if( aOnlyCheckIfPermitted )
+            {
                 return true;
+            }
             else
+            {
                 return board->GetConnectivity()->IsConnectedOnLayer( this, aLayer, types );
+            }
         }
     }
 
     return true;
+}
+
+
+void PAD::SetDrillSizeX( const int aX )
+{
+    m_padStack.Drill().size.x = aX;
+
+    if( GetDrillShape() == PAD_DRILL_SHAPE::CIRCLE )
+        SetDrillSizeY( aX );
+
+    SetDirty();
+}
+
+
+void PAD::SetDrillShape( PAD_DRILL_SHAPE aShape )
+{
+    m_padStack.Drill().shape = aShape;
+
+    if( aShape == PAD_DRILL_SHAPE::CIRCLE )
+        SetDrillSizeY( GetDrillSizeX() );
+
+    m_shapesDirty = true;
 }
 
 
@@ -2120,7 +2171,7 @@ void PAD::CheckPad( UNITS_PROVIDER* aUnitsProvider,
 
     LSET padlayers_mask = GetLayerSet();
 
-    if( padlayers_mask == 0 )
+    if( padlayers_mask.none() )
         aErrorHandler( DRCE_PADSTACK_INVALID, _( "(Pad has no layer)" ) );
 
     if( GetAttribute() == PAD_ATTRIB::PTH && !IsOnCopperLayer() )
@@ -2242,7 +2293,7 @@ void PAD::CheckPad( UNITS_PROVIDER* aUnitsProvider,
             || ( GetDelta().y < 0 && GetDelta().y < -GetSize().x )
             || ( GetDelta().y > 0 && GetDelta().y > GetSize().x ) )
         {
-            aErrorHandler( DRCE_PADSTACK_INVALID, _( "(trapazoid delta is too large)" ) );
+            aErrorHandler( DRCE_PADSTACK_INVALID, _( "(trapezoid delta is too large)" ) );
         }
     }
 
@@ -2473,6 +2524,10 @@ static struct PAD_DESC
                 .Map( PAD_PROP::CASTELLATED,       _HKI( "Castellated pad" ) )
                 .Map( PAD_PROP::MECHANICAL,        _HKI( "Mechanical pad" ) );
 
+        ENUM_MAP<PAD_DRILL_SHAPE>::Instance()
+                .Map( PAD_DRILL_SHAPE::CIRCLE,     _HKI( "Round" ) )
+                .Map( PAD_DRILL_SHAPE::OBLONG,     _HKI( "Oblong" ) );
+
         ENUM_MAP<ZONE_CONNECTION>& zcMap = ENUM_MAP<ZONE_CONNECTION>::Instance();
 
         if( zcMap.Choices().GetCount() == 0 )
@@ -2577,6 +2632,10 @@ static struct PAD_DESC
                     } );
         propMgr.AddProperty( roundRadiusRatio, groupPad );
 
+        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_DRILL_SHAPE>( _HKI( "Hole Shape" ),
+                    &PAD::SetDrillShape, &PAD::GetDrillShape ), groupPad )
+                .SetWriteableFunc( padCanHaveHole );
+
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size X" ),
                     &PAD::SetDrillSizeX, &PAD::GetDrillSizeX,
                     PROPERTY_DISPLAY::PT_SIZE ), groupPad )
@@ -2587,7 +2646,16 @@ static struct PAD_DESC
                     &PAD::SetDrillSizeY, &PAD::GetDrillSizeY,
                     PROPERTY_DISPLAY::PT_SIZE ), groupPad )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator );
+                .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator )
+                .SetAvailableFunc(
+                        [=]( INSPECTABLE* aItem ) -> bool
+                        {
+                            // Circle holes have no usable y-size
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                                return pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE;
+
+                            return true;
+                        } );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_PROP>( _HKI( "Fabrication Property" ),
                     &PAD::SetProperty, &PAD::GetProperty ), groupPad );
@@ -2653,3 +2721,4 @@ static struct PAD_DESC
 ENUM_TO_WXANY( PAD_ATTRIB );
 ENUM_TO_WXANY( PAD_SHAPE );
 ENUM_TO_WXANY( PAD_PROP );
+ENUM_TO_WXANY( PAD_DRILL_SHAPE );

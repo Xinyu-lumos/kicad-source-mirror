@@ -265,7 +265,7 @@ public:
 
     void SetDrillSize( const VECTOR2I& aSize )  { m_padStack.Drill().size = aSize; SetDirty(); }
     const VECTOR2I& GetDrillSize() const        { return m_padStack.Drill().size; }
-    void SetDrillSizeX( const int aX )          { m_padStack.Drill().size.x = aX; SetDirty(); }
+    void SetDrillSizeX( const int aX );
     int GetDrillSizeX() const                   { return m_padStack.Drill().size.x; }
     void SetDrillSizeY( const int aY )          { m_padStack.Drill().size.y = aY; SetDirty(); }
     int GetDrillSizeY() const                   { return m_padStack.Drill().size.y; }
@@ -369,11 +369,7 @@ public:
         return m_padStack.GetOrientation().AsDegrees();
     }
 
-    void SetDrillShape( PAD_DRILL_SHAPE aShape )
-    {
-        m_padStack.Drill().shape = aShape;
-        m_shapesDirty = true;
-    }
+    void SetDrillShape( PAD_DRILL_SHAPE aShape );
     PAD_DRILL_SHAPE GetDrillShape() const { return m_padStack.Drill().shape; }
 
     bool IsDirty() const
@@ -388,7 +384,7 @@ public:
         m_polyDirty[ERROR_OUTSIDE] = true;
     }
 
-    void SetLayerSet( LSET aLayers ) override   { m_padStack.SetLayerSet( aLayers ); }
+    void SetLayerSet( const LSET& aLayers ) override   { m_padStack.SetLayerSet( aLayers ); }
     LSET GetLayerSet() const override           { return m_padStack.LayerSet(); }
 
     void SetAttribute( PAD_ATTRIB aAttribute );
@@ -809,21 +805,11 @@ public:
 
     virtual const BOX2I ViewBBox() const override;
 
-    void ClearZoneLayerOverrides()
-    {
-        m_zoneLayerOverrides.fill( ZLO_NONE );
-    }
+    void ClearZoneLayerOverrides();
 
-    const ZONE_LAYER_OVERRIDE& GetZoneLayerOverride( PCB_LAYER_ID aLayer ) const
-    {
-        return m_zoneLayerOverrides.at( aLayer );
-    }
+    const ZONE_LAYER_OVERRIDE& GetZoneLayerOverride( PCB_LAYER_ID aLayer ) const;
 
-    void SetZoneLayerOverride( PCB_LAYER_ID aLayer, ZONE_LAYER_OVERRIDE aOverride )
-    {
-        std::unique_lock<std::mutex> cacheLock( m_zoneLayerOverridesMutex );
-        m_zoneLayerOverrides.at( aLayer ) = aOverride;
-    }
+    void SetZoneLayerOverride( PCB_LAYER_ID aLayer, ZONE_LAYER_OVERRIDE aOverride );
 
     void CheckPad( UNITS_PROVIDER* aUnitsProvider,
                    const std::function<void( int aErrorCode,
@@ -875,8 +861,8 @@ private:
 
     int         m_lengthPadToDie;   // Length net from pad to die, inside the package
 
-    std::mutex                                     m_zoneLayerOverridesMutex;
-    std::array<ZONE_LAYER_OVERRIDE, MAX_CU_LAYERS> m_zoneLayerOverrides;
+    std::mutex                                  m_zoneLayerOverridesMutex;
+    std::map<PCB_LAYER_ID, ZONE_LAYER_OVERRIDE> m_zoneLayerOverrides;
 };
 
 #endif  // PAD_H

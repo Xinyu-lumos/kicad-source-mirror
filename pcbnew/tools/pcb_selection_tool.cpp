@@ -165,17 +165,17 @@ bool PCB_SELECTION_TOOL::Init()
 
     if( frame && frame->IsType( FRAME_FOOTPRINT_VIEWER ) )
     {
-        frame->AddStandardSubMenus( m_menu );
+        frame->AddStandardSubMenus( *m_menu.get() );
         return true;
     }
 
     std::shared_ptr<SELECT_MENU> selectMenu = std::make_shared<SELECT_MENU>();
     selectMenu->SetTool( this );
-    m_menu.RegisterSubMenu( selectMenu );
+    m_menu->RegisterSubMenu( selectMenu );
 
     static const std::vector<KICAD_T> tableCellTypes = { PCB_TABLECELL_T };
 
-    auto& menu = m_menu.GetMenu();
+    auto& menu = m_menu->GetMenu();
 
     auto activeToolCondition =
             [ frame ] ( const SELECTION& aSel )
@@ -223,7 +223,7 @@ bool PCB_SELECTION_TOOL::Init()
     menu.AddSeparator( 1 );
 
     if( frame )
-        frame->AddStandardSubMenus( m_menu );
+        frame->AddStandardSubMenus( *m_menu.get() );
 
     m_disambiguateTimer.SetOwner( this );
     Connect( wxEVT_TIMER, wxTimerEventHandler( PCB_SELECTION_TOOL::onDisambiguationExpire ),
@@ -363,7 +363,7 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
             if( !selectionCancelled )
             {
                 m_toolMgr->VetoContextMenuMouseWarp();
-                m_menu.ShowContextMenu( m_selection );
+                m_menu->ShowContextMenu( m_selection );
             }
         }
         else if( evt->IsDblClick( BUT_LEFT ) )
@@ -1713,8 +1713,11 @@ void PCB_SELECTION_TOOL::selectAllConnectedTracks(
     // Promote generated members to their PCB_GENERATOR parents
     for( EDA_ITEM* item : m_selection )
     {
-        BOARD_ITEM* boardItem = dynamic_cast<BOARD_ITEM*>( item );
-        PCB_GROUP*  parent = boardItem ? boardItem->GetParentGroup() : nullptr;
+        if( !item->IsBOARD_ITEM() )
+            continue;
+
+        BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( item );
+        PCB_GROUP*  parent = boardItem->GetParentGroup();
 
         if( parent && parent->Type() == PCB_GENERATOR_T )
         {
@@ -3105,8 +3108,9 @@ void PCB_SELECTION_TOOL::highlightInternal( EDA_ITEM* aItem, int aMode, bool aUs
     if( aUsingOverlay && aMode != BRIGHTENED )
         view()->Hide( aItem, true );    // Hide the original item, so it is shown only on overlay
 
-    if( BOARD_ITEM* boardItem = dynamic_cast<BOARD_ITEM*>( aItem ) )
+    if( aItem->IsBOARD_ITEM() )
     {
+        BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( aItem );
         boardItem->RunOnDescendants( std::bind( &PCB_SELECTION_TOOL::highlightInternal, this, _1,
                                                 aMode, aUsingOverlay ) );
     }
@@ -3140,8 +3144,9 @@ void PCB_SELECTION_TOOL::unhighlightInternal( EDA_ITEM* aItem, int aMode, bool a
         view()->Update( aItem );        // ... and make sure it's redrawn un-selected
     }
 
-    if( BOARD_ITEM* boardItem = dynamic_cast<BOARD_ITEM*>( aItem ) )
+    if( aItem->IsBOARD_ITEM() )
     {
+        BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( aItem );
         boardItem->RunOnDescendants( std::bind( &PCB_SELECTION_TOOL::unhighlightInternal, this, _1,
                                                 aMode, aUsingOverlay ) );
     }

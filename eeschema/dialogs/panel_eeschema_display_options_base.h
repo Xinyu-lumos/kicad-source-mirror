@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.0.0-0-g0efcecf)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -60,6 +60,11 @@ class PANEL_EESCHEMA_DISPLAY_OPTIONS_BASE : public RESETTABLE_PANEL
 		wxStaticText* m_highlightColorNote;
 		wxStaticText* m_highlightWidthLabel;
 		wxSpinCtrlDouble* m_highlightWidthCtrl;
+		wxCheckBox* m_highlightNetclassColors;
+		wxStaticText* m_colorHighlightLabel;
+		wxSpinCtrlDouble* m_colHighlightThickness;
+		wxStaticText* m_colHighlightLabel2;
+		wxSpinCtrlDouble* m_colHighlightTransparency;
 		wxStaticText* m_crossprobeLabel;
 		wxStaticLine* m_staticline3;
 		wxCheckBox* m_checkCrossProbeOnSelection;

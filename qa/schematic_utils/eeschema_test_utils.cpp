@@ -48,7 +48,7 @@ void KI_TEST::SCHEMATIC_TEST_FIXTURE::LoadSchematic( const wxString& aBaseName )
     m_schematic.Reset();
     m_manager.LoadProject( pro.GetFullPath() );
 
-    m_manager.Prj().SetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS, nullptr );
+    m_manager.Prj().SetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS, nullptr );
 
     m_schematic.SetProject( &m_manager.Prj() );
     m_schematic.SetRoot( m_pi->LoadSchematicFile( fn.GetFullPath(), &m_schematic ) );
@@ -133,13 +133,12 @@ void TEST_NETLIST_EXPORTER_FIXTURE<Exporter>::WriteNetlist()
     if( wxFileExists( GetNetlistPath( true ) ) )
         wxRemoveFile( GetNetlistPath( true ) );
 
-    wxString                  errors;
-    WX_STRING_REPORTER        reporter( &errors );
+    WX_STRING_REPORTER        reporter;
     std::unique_ptr<Exporter> exporter = std::make_unique<Exporter>( &m_schematic );
 
     bool success = exporter->WriteNetlist( GetNetlistPath( true ), GetNetlistOptions(), reporter );
 
-    BOOST_REQUIRE( success && errors.IsEmpty() );
+    BOOST_REQUIRE( success && reporter.GetMessages().IsEmpty() );
 }
 
 

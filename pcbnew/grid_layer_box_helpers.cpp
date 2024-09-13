@@ -22,6 +22,9 @@
  */
 
 #include <grid_layer_box_helpers.h>
+
+#include <wx/textctrl.h>
+
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
 #include <settings/color_settings.h>
@@ -31,8 +34,7 @@
 #include <pcb_edit_frame.h>
 #include <pcb_layer_box_selector.h>
 #include <settings/color_settings.h>
-#include <widgets/layer_box_selector.h>
-#include <wx/textctrl.h>
+#include <widgets/layer_presentation.h>
 
 
 //-------- Custom wxGridCellRenderers --------------------------------------------------
@@ -68,17 +70,17 @@ void GRID_CELL_LAYER_RENDERER::Draw( wxGrid& aGrid, wxGridCellAttr& aAttr, wxDC&
     else
     {
         SETTINGS_MANAGER&          mgr = Pgm().GetSettingsManager();
-        FOOTPRINT_EDITOR_SETTINGS* settings = mgr.GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>();
-        cs = mgr.GetColorSettings( settings->m_ColorTheme );
+        FOOTPRINT_EDITOR_SETTINGS* cfg = mgr.GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" );
+        cs = mgr.GetColorSettings( cfg->m_ColorTheme );
     }
 
     // draw the swatch
     int      size = KiROUND( 14 * aDC.GetContentScaleFactor() );
     wxBitmap bitmap( size, size );
 
-    LAYER_SELECTOR::DrawColorSwatch( bitmap,
-                                     cs->GetColor( ToLAYER_ID( LAYER_PCB_BACKGROUND ) ),
-                                     cs->GetColor( ToLAYER_ID( value ) ) );
+    LAYER_PRESENTATION::DrawColorSwatch( bitmap,
+                                         cs->GetColor( ToLAYER_ID( LAYER_PCB_BACKGROUND ) ),
+                                         cs->GetColor( ToLAYER_ID( value ) ) );
 
     aDC.DrawBitmap( bitmap, rect.GetLeft() + 4,
                     rect.GetTop() + ( rect.GetHeight() - bitmap.GetHeight() ) / 2, true );

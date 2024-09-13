@@ -502,8 +502,10 @@ void BOARD::Move( const VECTOR2I& aMoveVector ) // overload
     INSPECTOR_FUNC inspector =
             [&] ( EDA_ITEM* item, void* testData )
             {
-                if( BOARD_ITEM* board_item = dynamic_cast<BOARD_ITEM*>( item ) )
+                if( item->IsBOARD_ITEM() )
                 {
+                    BOARD_ITEM* board_item = static_cast<BOARD_ITEM*>( item );
+
                     // aMoveVector was snapshotted, don't need "data".
                     // Only move the top level group
                     if( !board_item->GetParentGroup() && !board_item->GetParentFootprint() )
@@ -972,7 +974,7 @@ void BOARD::FixupEmbeddedData()
             {
                 embeddedFile->compressedEncodedData = file->compressedEncodedData;
                 embeddedFile->decompressedData = file->decompressedData;
-                embeddedFile->data_sha = file->data_sha;
+                embeddedFile->data_hash = file->data_hash;
                 embeddedFile->is_valid = file->is_valid;
             }
         }
@@ -2119,7 +2121,7 @@ PAD* BOARD::GetPad( const PCB_TRACK* aTrace, ENDPOINT_T aEndPoint ) const
 {
     const VECTOR2I& aPosition = aTrace->GetEndPoint( aEndPoint );
 
-    LSET lset( aTrace->GetLayer() );
+    LSET lset( { aTrace->GetLayer() } );
 
     return GetPad( aPosition, lset );
 }
@@ -2498,18 +2500,21 @@ bool BOARD::GetBoardPolygonOutlines( SHAPE_POLY_SET& aOutlines,
                 SHAPE_POLY_SET hole;
                 pad->TransformHoleToPolygon( hole, 0, GetDesignSettings().m_MaxError, ERROR_INSIDE );
 
-                // Add this pad hole to the main outline
-                // But we can have more than one main outline (i.e. more than one board), so
-                // search the right main outline i.e. the outline that contains the pad hole
-                SHAPE_LINE_CHAIN& pad_hole = hole.Outline( 0 );
-                const VECTOR2I holePt = pad_hole.CPoint( 0 );
-
-                for( int jj = 0; jj < aOutlines.OutlineCount(); ++jj )
+                if( hole.OutlineCount() > 0 )   // can be not the case for malformed NPTH holes
                 {
-                    if( aOutlines.Outline( jj ).PointInside( holePt ) )
+                    // Add this pad hole to the main outline
+                    // But we can have more than one main outline (i.e. more than one board), so
+                    // search the right main outline i.e. the outline that contains the pad hole
+                    SHAPE_LINE_CHAIN& pad_hole = hole.Outline( 0 );
+                    const VECTOR2I holePt = pad_hole.CPoint( 0 );
+
+                    for( int jj = 0; jj < aOutlines.OutlineCount(); ++jj )
                     {
-                        aOutlines.AddHole( pad_hole, jj );
-                        break;
+                        if( aOutlines.Outline( jj ).PointInside( holePt ) )
+                        {
+                            aOutlines.AddHole( pad_hole, jj );
+                            break;
+                        }
                     }
                 }
             }
@@ -2815,8 +2820,10 @@ BOARD::GroupLegalOpsField BOARD::GroupLegalOps( const PCB_SELECTION& selection )
 
     for( EDA_ITEM* item : selection )
     {
-        if( BOARD_ITEM* board_item = dynamic_cast<BOARD_ITEM*>( item ) )
+        if( item->IsBOARD_ITEM() )
         {
+            BOARD_ITEM* board_item = static_cast<BOARD_ITEM*>( item );
+
             if( board_item->Type() == PCB_GROUP_T )
                 hasGroup = true;
 

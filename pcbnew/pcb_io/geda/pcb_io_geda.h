@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012-2020 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2012-2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2024 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -59,25 +59,21 @@ public:
     }
 
     FOOTPRINT* ImportFootprint( const wxString& aFootprintPath, wxString& aFootprintNameOut,
-                                const STRING_UTF8_MAP* aProperties ) override;
+                                const std::map<std::string, UTF8>* aProperties ) override;
 
     void FootprintEnumerate( wxArrayString& aFootprintNames, const wxString& aLibraryPath,
                              bool aBestEfforts,
-                             const STRING_UTF8_MAP* aProperties = nullptr ) override;
-
-    const FOOTPRINT* GetEnumeratedFootprint( const wxString& aLibraryPath,
-                                             const wxString& aFootprintName,
-                                             const STRING_UTF8_MAP* aProperties = nullptr ) override;
+                             const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
     FOOTPRINT* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
                               bool  aKeepUUID = false,
-                              const STRING_UTF8_MAP* aProperties = nullptr ) override;
+                              const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
     void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName,
-                          const STRING_UTF8_MAP* aProperties = nullptr ) override;
+                          const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
     bool DeleteLibrary( const wxString& aLibraryPath,
-                        const STRING_UTF8_MAP* aProperties = nullptr ) override;
+                        const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
     long long GetLibraryTimestamp( const wxString& aLibraryPath ) const override;
 
@@ -95,9 +91,9 @@ private:
     void validateCache( const wxString& aLibraryPath, bool checkModified = true );
 
     const FOOTPRINT* getFootprint( const wxString& aLibraryPath, const wxString& aFootprintName,
-                                   const STRING_UTF8_MAP* aProperties, bool checkModified );
+                                   const std::map<std::string, UTF8>* aProperties, bool checkModified );
 
-    void init( const STRING_UTF8_MAP* aProperties );
+    void init( const std::map<std::string, UTF8>* aProperties );
 
     friend class GPCB_FPL_CACHE;
 

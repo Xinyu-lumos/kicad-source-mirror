@@ -70,7 +70,6 @@
 #include <project_pcb.h>
 #include <pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.h>
 #include <reporter.h>
-#include <string_utf8_map.h>
 #include <wildcards_and_files_ext.h>
 #include <export_vrml.h>
 #include <wx/wfstream.h>
@@ -125,7 +124,7 @@ int PCBNEW_JOBS_HANDLER::JobExportStep( JOB* aJob )
     brd->GetProject()->ApplyTextVars( aJob->GetVarOverrides() );
     brd->SynchronizeProperties();
 
-    if( aStepJob->m_params.m_OutputFile.IsEmpty() )
+    if( aStepJob->m_3dparams.m_OutputFile.IsEmpty() )
     {
         wxFileName fn = brd->GetFileName();
         fn.SetName( fn.GetName() );
@@ -146,7 +145,7 @@ int PCBNEW_JOBS_HANDLER::JobExportStep( JOB* aJob )
             return CLI::EXIT_CODES::ERR_UNKNOWN; // shouldnt have gotten here
         }
 
-        aStepJob->m_params.m_OutputFile = fn.GetFullName();
+        aStepJob->m_3dparams.m_OutputFile = fn.GetFullName();
     }
 
     if( aStepJob->m_format == JOB_EXPORT_PCB_3D::FORMAT::VRML )
@@ -164,8 +163,8 @@ int PCBNEW_JOBS_HANDLER::JobExportStep( JOB* aJob )
         EXPORTER_VRML vrmlExporter( brd );
         wxString      messages;
 
-        double originX = pcbIUScale.IUTomm( aStepJob->m_params.m_Origin.x );
-        double originY = pcbIUScale.IUTomm( aStepJob->m_params.m_Origin.y );
+        double originX = pcbIUScale.IUTomm( aStepJob->m_3dparams.m_Origin.x );
+        double originY = pcbIUScale.IUTomm( aStepJob->m_3dparams.m_Origin.y );
 
         if( !aStepJob->m_hasUserOrigin )
         {
@@ -175,15 +174,15 @@ int PCBNEW_JOBS_HANDLER::JobExportStep( JOB* aJob )
         }
 
         bool success = vrmlExporter.ExportVRML_File(
-                brd->GetProject(), &messages, aStepJob->m_params.m_OutputFile, scale,
-                aStepJob->m_params.m_IncludeUnspecified, aStepJob->m_params.m_IncludeDNP,
+                brd->GetProject(), &messages, aStepJob->m_3dparams.m_OutputFile, scale,
+                aStepJob->m_3dparams.m_IncludeUnspecified, aStepJob->m_3dparams.m_IncludeDNP,
                 !aStepJob->m_vrmlModelDir.IsEmpty(), aStepJob->m_vrmlRelativePaths,
                 aStepJob->m_vrmlModelDir, originX, originY );
 
         if ( success )
         {
             m_reporter->Report( wxString::Format( _( "Successfully exported VRML to %s" ),
-                                                  aStepJob->m_params.m_OutputFile ),
+                                                  aStepJob->m_3dparams.m_OutputFile ),
                                 RPT_SEVERITY_INFO );
         }
         else
@@ -194,7 +193,7 @@ int PCBNEW_JOBS_HANDLER::JobExportStep( JOB* aJob )
     }
     else
     {
-        EXPORTER_STEP_PARAMS params = aStepJob->m_params;
+        EXPORTER_STEP_PARAMS params = aStepJob->m_3dparams;
 
         switch( aStepJob->m_format )
         {
@@ -350,7 +349,7 @@ int PCBNEW_JOBS_HANDLER::JobExportRender( JOB* aJob )
         }
     }
 
-    GLubyte* rgbaBuffer = raytrace.GetBuffer();
+    uint8_t* rgbaBuffer = raytrace.GetBuffer();
     wxSize   realSize = raytrace.GetRealBufferSize();
     bool     success = !!rgbaBuffer;
 
@@ -423,6 +422,9 @@ int PCBNEW_JOBS_HANDLER::JobExportSvg( JOB* aJob )
     svgPlotOptions.m_printMaskLayer = aSvgJob->m_printMaskLayer;
     svgPlotOptions.m_plotFrame = aSvgJob->m_plotDrawingSheet;
     svgPlotOptions.m_sketchPadsOnFabLayers = aSvgJob->m_sketchPadsOnFabLayers;
+    svgPlotOptions.m_hideDNPFPsOnFabLayers = aSvgJob->m_hideDNPFPsOnFabLayers;
+    svgPlotOptions.m_sketchDNPFPsOnFabLayers = aSvgJob->m_sketchDNPFPsOnFabLayers;
+    svgPlotOptions.m_crossoutDNPFPsOnFabLayers = aSvgJob->m_crossoutDNPFPsOnFabLayers;
     svgPlotOptions.m_drillShapeOption = aSvgJob->m_drillShapeOption;
 
     if( aJob->IsCli() )
@@ -566,6 +568,10 @@ int PCBNEW_JOBS_HANDLER::JobExportPdf( JOB* aJob )
         plotOpts.SetPlotPadNumbers( true );
     }
 
+    plotOpts.SetHideDNPFPsOnFabLayers( aPdfJob->m_hideDNPFPsOnFabLayers );
+    plotOpts.SetSketchDNPFPsOnFabLayers( aPdfJob->m_sketchDNPFPsOnFabLayers );
+    plotOpts.SetCrossoutDNPFPsOnFabLayers( aPdfJob->m_crossoutDNPFPsOnFabLayers );
+
     switch( aPdfJob->m_drillShapeOption )
     {
         default:
@@ -654,7 +660,7 @@ int PCBNEW_JOBS_HANDLER::JobExportGerbers( JOB* aJob )
             aGerberJob->m_layersIncludeOnAll = plotOnAllLayersSelection;
     }
 
-    for( PCB_LAYER_ID layer : LSET( aGerberJob->m_printMaskLayer ).UIOrder() )
+    for( PCB_LAYER_ID layer : LSET( { aGerberJob->m_printMaskLayer } ).UIOrder() )
     {
         LSEQ plotSequence;
 
@@ -1119,7 +1125,8 @@ int PCBNEW_JOBS_HANDLER::JobExportFpUpgrade( JOB* aJob )
     }
     else
     {
-        if( !PCB_IO_MGR::ConvertLibrary( nullptr, upgradeJob->m_libraryPath, upgradeJob->m_outputLibraryPath ) )
+        if( !PCB_IO_MGR::ConvertLibrary( nullptr, upgradeJob->m_libraryPath,
+                                         upgradeJob->m_outputLibraryPath, nullptr /* REPORTER */ ) )
         {
             m_reporter->Report( ( "Unable to convert library\n" ), RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_UNKNOWN;
@@ -1244,6 +1251,9 @@ int PCBNEW_JOBS_HANDLER::doFpExportSvg( JOB_FP_EXPORT_SVG* aSvgJob, const FOOTPR
     svgPlotOptions.m_pageSizeMode = 2; // board bounding box
     svgPlotOptions.m_printMaskLayer = aSvgJob->m_printMaskLayer;
     svgPlotOptions.m_sketchPadsOnFabLayers = aSvgJob->m_sketchPadsOnFabLayers;
+    svgPlotOptions.m_hideDNPFPsOnFabLayers = aSvgJob->m_hideDNPFPsOnFabLayers;
+    svgPlotOptions.m_sketchDNPFPsOnFabLayers = aSvgJob->m_sketchDNPFPsOnFabLayers;
+    svgPlotOptions.m_crossoutDNPFPsOnFabLayers = aSvgJob->m_crossoutDNPFPsOnFabLayers;
     svgPlotOptions.m_plotFrame = false;
 
     if( !EXPORT_SVG::Plot( brd.get(), svgPlotOptions ) )
@@ -1442,7 +1452,7 @@ int PCBNEW_JOBS_HANDLER::JobExportIpc2581( JOB* aJob )
         job->m_outputFile = fn.GetFullName();
     }
 
-    STRING_UTF8_MAP props;
+    std::map<std::string, UTF8> props;
     props["units"] = job->m_units == JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::MILLIMETERS ? "mm"
                                                                                         : "inch";
     props["sigfig"] = wxString::Format( "%d", job->m_precision );

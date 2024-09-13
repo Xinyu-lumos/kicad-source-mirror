@@ -134,7 +134,7 @@ const ITEM_SET ROUTER::QueryHoverItems( const VECTOR2I& aP, int aSlopRadius )
         COLLISION_SEARCH_OPTIONS opts;
 
         test.SetWidth( 1 );
-        test.SetLayers( LAYER_RANGE::All() );
+        test.SetLayers( PNS_LAYER_RANGE::All() );
 
         opts.m_differentNetsOnly = false;
         opts.m_overrideClearance = aSlopRadius;
@@ -250,6 +250,9 @@ bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, ITEM* aStartItem, 
             case PCB_ZONE_T:
             {
                 ZONE* zone = static_cast<ZONE*>( parent );
+
+                if( zone->GetRuleAreaType() != RULE_AREA_TYPE::KEEPOUT )
+                    break;
 
                 if( !zone->GetZoneName().IsEmpty() )
                 {
@@ -471,7 +474,7 @@ bool ROUTER::Move( const VECTOR2I& aP, ITEM* endItem )
 }
 
 
-bool ROUTER::getNearestRatnestAnchor( VECTOR2I& aOtherEnd, LAYER_RANGE& aOtherEndLayers,
+bool ROUTER::getNearestRatnestAnchor( VECTOR2I& aOtherEnd, PNS_LAYER_RANGE& aOtherEndLayers,
                                       ITEM*& aOtherEndItem )
 {
     // Can't finish something with no connections
@@ -539,7 +542,7 @@ bool ROUTER::Finish()
 
     // Get our current line and position and nearest ratsnest to them if it exists
     VECTOR2I    otherEnd;
-    LAYER_RANGE otherEndLayers;
+    PNS_LAYER_RANGE otherEndLayers;
     ITEM*       otherEndItem = nullptr;
 
     // Get the anchor nearest to the end of the trace the user is routing
@@ -585,7 +588,7 @@ bool ROUTER::ContinueFromEnd( ITEM** aNewStartItem )
     int         currentLayer = GetCurrentLayer();
     VECTOR2I    currentEnd = placer->CurrentEnd();
     VECTOR2I    otherEnd;
-    LAYER_RANGE otherEndLayers;
+    PNS_LAYER_RANGE otherEndLayers;
     ITEM*       otherEndItem = nullptr;
 
     // Get the anchor nearest to the end of the trace the user is routing

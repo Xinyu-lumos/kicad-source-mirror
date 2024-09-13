@@ -30,7 +30,7 @@
 #include <layer_ids.h>
 #include <lseq.h>
 #include <lset.h>
-#include <geometry/geometry_utils.h>
+#include <geometry/approximation.h>
 #include <stroke_params.h>
 #include <geometry/eda_angle.h>
 
@@ -79,7 +79,7 @@ class BOARD_ITEM : public EDA_ITEM
 {
 public:
     BOARD_ITEM( BOARD_ITEM* aParent, KICAD_T idtype, PCB_LAYER_ID aLayer = F_Cu ) :
-            EDA_ITEM( aParent, idtype ),
+            EDA_ITEM( aParent, idtype, false, true ),
             m_layer( aLayer ),
             m_isKnockout( false ),
             m_isLocked( false ),
@@ -240,6 +240,21 @@ public:
     virtual PCB_LAYER_ID GetLayer() const { return m_layer; }
 
     /**
+     * Return the total number of layers for the board that this item resides on.
+     */
+    virtual int BoardLayerCount() const;
+
+    /**
+     * Return the total number of copper layers for the board that this item resides on.
+     */
+    virtual int BoardCopperLayerCount() const;
+
+    /**
+     * Return the LSET for the board that this item resides on.
+     */
+    virtual LSET BoardLayerSet() const;
+
+    /**
      * Return a std::bitset of all layers on which the item physically resides.
      */
     virtual LSET GetLayerSet() const
@@ -247,10 +262,10 @@ public:
         if( m_layer == UNDEFINED_LAYER )
             return LSET();
         else
-            return LSET( m_layer );
+            return LSET( { m_layer } );
     }
 
-    virtual void SetLayerSet( LSET aLayers )
+    virtual void SetLayerSet( const LSET& aLayers )
     {
         if( aLayers.count() == 1 )
         {

@@ -460,3 +460,46 @@ void WX_HTML_REPORT_PANEL::SetShowSeverity( SEVERITY aSeverity, bool aValue )
     default:                   m_checkBoxShowErrors->SetValue( aValue );   break;
     }
 }
+
+
+REPORTER& WX_HTML_PANEL_REPORTER::Report( const wxString& aText, SEVERITY aSeverity )
+{
+    wxCHECK_MSG( m_panel != nullptr, *this,
+                 wxT( "No WX_HTML_REPORT_PANEL object defined in WX_HTML_PANEL_REPORTER." ) );
+
+    m_panel->Report( aText, aSeverity );
+    return *this;
+}
+
+
+REPORTER& WX_HTML_PANEL_REPORTER::ReportTail( const wxString& aText, SEVERITY aSeverity )
+{
+    wxCHECK_MSG( m_panel != nullptr, *this,
+                 wxT( "No WX_HTML_REPORT_PANEL object defined in WX_HTML_PANEL_REPORTER." ) );
+
+    m_panel->Report( aText, aSeverity, LOC_TAIL );
+    return *this;
+}
+
+
+REPORTER& WX_HTML_PANEL_REPORTER::ReportHead( const wxString& aText, SEVERITY aSeverity )
+{
+    wxCHECK_MSG( m_panel != nullptr, *this,
+                 wxT( "No WX_HTML_REPORT_PANEL object defined in WX_HTML_PANEL_REPORTER." ) );
+
+    m_panel->Report( aText, aSeverity, LOC_HEAD );
+    return *this;
+}
+
+
+bool WX_HTML_PANEL_REPORTER::HasMessage() const
+{
+    // Check just for errors and warnings for compatibility
+    return HasMessageOfSeverity( RPT_SEVERITY_ERROR | RPT_SEVERITY_WARNING );
+}
+
+
+bool WX_HTML_PANEL_REPORTER::HasMessageOfSeverity( int aSeverityMask ) const
+{
+    return m_panel->Count( aSeverityMask ) > 0;
+}

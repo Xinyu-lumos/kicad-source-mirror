@@ -33,6 +33,7 @@
 #include <dialogs/dialog_assign_netclass.h>
 #include <dialogs/dialog_update_from_pcb.h>
 #include <dialogs/hotkey_cycle_popup.h>
+#include <dialogs/dialog_increment_annotations_base.h>
 #include <project_rescue.h>
 #include <erc/erc.h>
 #include <invoke_sch_dialog.h>
@@ -566,14 +567,13 @@ int SCH_EDITOR_CONTROL::SimProbe( const TOOL_EVENT& aEvent )
                         SCH_PIN*    pin = static_cast<SCH_PIN*>( item )->GetLibPin();
                         SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item->GetParent() );
 
-                        wxString           msg;
-                        WX_STRING_REPORTER reporter( &msg );
+                        WX_STRING_REPORTER reporter;
                         SIM_LIB_MGR        mgr( &m_frame->Prj() );
 
                         SIM_MODEL&  model = mgr.CreateModel( &sheet, *symbol, reporter ).model;
 
                         if( reporter.HasMessage() )
-                            THROW_IO_ERROR( msg );
+                            THROW_IO_ERROR( reporter.GetMessages() );
 
                         SPICE_ITEM spiceItem;
                         spiceItem.refName = symbol->GetRef( &sheet ).ToStdString();
@@ -2100,6 +2100,11 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
                 {
                     processPt( pin->GetPosition() );
                 }
+
+                // Symbols need to have their center point added since often users are trying to
+                // move parts from their center.
+                if( dynamic_cast<SCH_SYMBOL*>( item ) )
+                    processPt( item->GetPosition() );
             }
 
             // Only process other points if we didn't find any connection points
@@ -2243,16 +2248,71 @@ int SCH_EDITOR_CONTROL::EditWithSymbolEditor( const TOOL_EVENT& aEvent )
 
 int SCH_EDITOR_CONTROL::Annotate( const TOOL_EVENT& aEvent )
 {
-    wxCommandEvent dummy;
-    m_frame->OnAnnotate( dummy );
+    m_frame->OnAnnotate();
+    return 0;
+}
+
+
+int SCH_EDITOR_CONTROL::IncrementAnnotations( const TOOL_EVENT& aEvent )
+{
+    DIALOG_INCREMENT_ANNOTATIONS_BASE dlg( m_frame );
+
+    dlg.SetInitialFocus( dlg.m_FirstRefDes );
+
+    if( dlg.ShowModal() == wxID_OK )
+    {
+        SCH_REFERENCE startRef;
+        startRef.SetRef( dlg.m_FirstRefDes->GetValue() );
+
+        if( startRef.IsSplitNeeded() )
+            startRef.Split();
+        else
+            return 0;
+
+        int startNum = atoi( startRef.GetRefNumber().utf8_string().c_str() );
+
+        SCH_COMMIT         commit( m_frame );
+        SCHEMATIC*         schematic = m_frame->m_schematic;
+        SCH_REFERENCE_LIST references;
+
+        if( dlg.m_AllSheets->GetValue() )
+            schematic->BuildSheetListSortedByPageNumbers().GetSymbols( references );
+        else
+            schematic->CurrentSheet().GetSymbols( references );
+
+        references.SplitReferences();
+
+        for( SCH_REFERENCE& ref : references )
+        {
+            if( ref.GetRef() == startRef.GetRef() )
+            {
+                int num = atoi( ref.GetRefNumber().utf8_string().c_str() );
+
+                if( num >= startNum )
+                {
+                    const SCH_SHEET_PATH& sheet = ref.GetSheetPath();
+                    wxString              fullRef = ref.GetRef();
+
+                    num += dlg.m_Increment->GetValue();
+                    fullRef << num;
+
+                    commit.Modify( ref.GetSymbol(), sheet.LastScreen() );
+                    ref.GetSymbol()->SetRef( &sheet, From_UTF8( fullRef.c_str() ) );
+                }
+            }
+        }
+
+        if( !commit.Empty() )
+            commit.Push( _( "Increment Annotations" ) );
+    }
+
     return 0;
 }
 
 
 int SCH_EDITOR_CONTROL::ShowCvpcb( const TOOL_EVENT& aEvent )
 {
-    wxCommandEvent dummy;
-    m_frame->OnOpenCvpcb( dummy );
+    m_frame->OnOpenCvpcb();
     return 0;
 }
 
@@ -2286,16 +2346,14 @@ int SCH_EDITOR_CONTROL::EditSymbolLibraryLinks( const TOOL_EVENT& aEvent )
 
 int SCH_EDITOR_CONTROL::ShowPcbNew( const TOOL_EVENT& aEvent )
 {
-    wxCommandEvent dummy;
-    m_frame->OnOpenPcbnew( dummy );
+    m_frame->OnOpenPcbnew();
     return 0;
 }
 
 
 int SCH_EDITOR_CONTROL::UpdatePCB( const TOOL_EVENT& aEvent )
 {
-    wxCommandEvent dummy;
-    m_frame->OnUpdatePCB( dummy );
+    m_frame->OnUpdatePCB();
     return 0;
 }
 
@@ -2377,6 +2435,13 @@ int SCH_EDITOR_CONTROL::ShowNetNavigator( const TOOL_EVENT& aEvent )
 int SCH_EDITOR_CONTROL::ToggleProperties( const TOOL_EVENT& aEvent )
 {
     getEditFrame<SCH_EDIT_FRAME>()->ToggleProperties();
+    return 0;
+}
+
+
+int SCH_EDITOR_CONTROL::ToggleLibraryTree( const TOOL_EVENT& aEvent )
+{
+    getEditFrame<SCH_EDIT_FRAME>()->ToggleLibraryTree();
     return 0;
 }
 
@@ -2739,6 +2804,7 @@ void SCH_EDITOR_CONTROL::setTransitions()
     Go( &SCH_EDITOR_CONTROL::ShowCvpcb,             EE_ACTIONS::assignFootprints.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ImportFPAssignments,   EE_ACTIONS::importFPAssignments.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::Annotate,              EE_ACTIONS::annotate.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::IncrementAnnotations,  EE_ACTIONS::incrementAnnotations.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::EditSymbolFields,      EE_ACTIONS::editSymbolFields.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::EditSymbolLibraryLinks,
         EE_ACTIONS::editSymbolLibraryLinks.MakeEvent() );
@@ -2754,6 +2820,8 @@ void SCH_EDITOR_CONTROL::setTransitions()
     Go( &SCH_EDITOR_CONTROL::ShowHierarchy,         EE_ACTIONS::showHierarchy.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ShowNetNavigator,      EE_ACTIONS::showNetNavigator.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ToggleProperties,      ACTIONS::showProperties.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::ToggleLibraryTree,     ACTIONS::hideLibraryTree.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::ToggleLibraryTree,     ACTIONS::showLibraryTree.MakeEvent() );
 
     Go( &SCH_EDITOR_CONTROL::ToggleHiddenPins,      EE_ACTIONS::toggleHiddenPins.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ToggleHiddenFields,    EE_ACTIONS::toggleHiddenFields.MakeEvent() );

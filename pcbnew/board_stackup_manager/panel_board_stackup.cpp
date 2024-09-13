@@ -28,8 +28,9 @@
 #include <board_design_settings.h>
 #include <dialogs/dialog_color_picker.h>
 #include <widgets/paged_dialog.h>
-#include <widgets/layer_box_selector.h>
+#include <widgets/layer_presentation.h>
 #include <widgets/wx_panel.h>
+#include <wx/bmpcbox.h>
 #include <wx/log.h>
 #include <wx/rawbmp.h>
 #include <wx/clipbrd.h>
@@ -684,7 +685,7 @@ void PANEL_SETUP_BOARD_STACKUP::synchronizeWithBoard( bool aFullSync )
                 {
                     bm_combo->SetString( selected, item->GetColor( sub_item ) );
                     wxBitmap layerbmp( m_colorSwatchesSize.x, m_colorSwatchesSize.y );
-                    LAYER_SELECTOR::DrawColorSwatch( layerbmp, COLOR4D(), custom_color );
+                    LAYER_PRESENTATION::DrawColorSwatch( layerbmp, COLOR4D(), custom_color );
                     bm_combo->SetItemBitmap( selected, layerbmp );
                 }
             }
@@ -1079,7 +1080,7 @@ void PANEL_SETUP_BOARD_STACKUP::buildLayerStackPanel( bool aCreateInitialStackup
     {
         if( aCreateInitialStackup )
         {
-            // Creates a full BOARD_STACKUP with 32 copper layers.
+            // Creates a BOARD_STACKUP with 32 copper layers.
             // extra layers will be hidden later.
             // but if the number of layer is changed in the dialog, the corresponding
             // widgets will be available with their previous values.
@@ -1404,7 +1405,7 @@ void PANEL_SETUP_BOARD_STACKUP::onColorSelected( wxCommandEvent& event )
             combo->SetString( idx, color.ToHexString() );
 
             wxBitmap layerbmp( m_colorSwatchesSize.x, m_colorSwatchesSize.y );
-            LAYER_SELECTOR::DrawColorSwatch( layerbmp, COLOR4D( 0, 0, 0, 0 ), color );
+            LAYER_PRESENTATION::DrawColorSwatch( layerbmp, COLOR4D( 0, 0, 0, 0 ), color );
             combo->SetItemBitmap( combo->GetCount() - 1, layerbmp );
 
             combo->SetSelection( idx );
@@ -1654,7 +1655,7 @@ wxBitmapComboBox* PANEL_SETUP_BOARD_STACKUP::createColorBox( BOARD_STACKUP_ITEM*
         }
 
         wxBitmap layerbmp( m_colorSwatchesSize.x, m_colorSwatchesSize.y );
-        LAYER_SELECTOR::DrawColorSwatch( layerbmp, COLOR4D( 0, 0, 0, 0 ), curr_color );
+        LAYER_PRESENTATION::DrawColorSwatch( layerbmp, COLOR4D( 0, 0, 0, 0 ), curr_color );
 
         combo->Append( label, layerbmp );
     }

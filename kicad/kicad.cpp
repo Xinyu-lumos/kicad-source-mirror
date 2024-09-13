@@ -47,6 +47,7 @@
 #include <systemdirsappend.h>
 #include <trace_helpers.h>
 #include <wildcards_and_files_ext.h>
+#include <confirm.h>
 
 #include <git2.h>
 #include <stdexcept>
@@ -60,7 +61,6 @@
 #ifdef KICAD_IPC_API
 #include <api/api_server.h>
 #endif
-
 
 // a dummy to quiet linking with EDA_BASE_FRAME::config();
 #include <kiface_base.h>

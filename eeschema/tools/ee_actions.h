@@ -78,6 +78,7 @@ public:
     static TOOL_ACTION pickerTool;
     static TOOL_ACTION placeSymbol;
     static TOOL_ACTION placePower;
+    static TOOL_ACTION placeDesignBlock;
     static TOOL_ACTION drawWire;
     static TOOL_ACTION drawBus;
     static TOOL_ACTION unfoldBus;
@@ -89,7 +90,9 @@ public:
     static TOOL_ACTION placeGlobalLabel;
     static TOOL_ACTION placeHierLabel;
     static TOOL_ACTION drawSheet;
+    static TOOL_ACTION drawSheetCopy;
     static TOOL_ACTION placeSheetPin;
+    static TOOL_ACTION importSheet;
     // Sync sheet pins for selected sheet symbol
     static TOOL_ACTION syncSheetPins;
     // Sync sheet pins for all sheet symbols
@@ -150,6 +153,7 @@ public:
     static TOOL_ACTION showDatasheet;
     static TOOL_ACTION runERC;
     static TOOL_ACTION annotate;
+    static TOOL_ACTION incrementAnnotations;
     static TOOL_ACTION editSymbolFields;
     static TOOL_ACTION editSymbolLibraryLinks;
     static TOOL_ACTION symbolProperties;
@@ -195,6 +199,11 @@ public:
     static TOOL_ACTION setDNP;
     static TOOL_ACTION unsetDNP;
     static TOOL_ACTION toggleDNP;
+
+    // Design Block management
+    static TOOL_ACTION saveSheetAsDesignBlock;
+    static TOOL_ACTION saveSelectionAsDesignBlock;
+    static TOOL_ACTION deleteDesignBlock;
 
     // Library management
     static TOOL_ACTION saveLibraryAs;

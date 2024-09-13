@@ -728,12 +728,13 @@ bool LEGACY_RESCUER::WriteRescueLibrary( wxWindow *aParent )
     wxString libPaths;
 
     wxString libName = m_rescue_lib->GetName();
-    SYMBOL_LIBS *libs = dynamic_cast<SYMBOL_LIBS*>( m_prj->GetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS ) );
+    SYMBOL_LIBS* libs =
+            dynamic_cast<SYMBOL_LIBS*>( m_prj->GetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS ) );
 
     if( !libs )
     {
         libs = new SYMBOL_LIBS();
-        m_prj->SetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS, libs );
+        m_prj->SetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS, libs );
     }
 
     try
@@ -759,7 +760,7 @@ bool LEGACY_RESCUER::WriteRescueLibrary( wxWindow *aParent )
     boost::ptr_vector<SYMBOL_LIB> libsSave;
     libsSave.transfer( libsSave.end(), libs->begin(), libs->end(), *libs );
 
-    m_prj->SetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS, nullptr );
+    m_prj->SetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS, nullptr );
 
     libs = new SYMBOL_LIBS();
 
@@ -780,7 +781,7 @@ bool LEGACY_RESCUER::WriteRescueLibrary( wxWindow *aParent )
         return false;
     }
 
-    m_prj->SetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS, libs );
+    m_prj->SetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS, libs );
 
     // Update the schematic symbol library links since the library list has changed.
     SCH_SCREENS schematic( m_schematic->Root() );
@@ -803,7 +804,7 @@ SYMBOL_LIB_TABLE_RESCUER::SYMBOL_LIB_TABLE_RESCUER( PROJECT& aProject, SCHEMATIC
                                                     EDA_DRAW_PANEL_GAL::GAL_TYPE aGalBackEndType ) :
     RESCUER( aProject, aSchematic, aCurrentSheet, aGalBackEndType )
 {
-    m_properties = std::make_unique<STRING_UTF8_MAP>();
+    m_properties = std::make_unique<std::map<std::string, UTF8>>();
 }
 
 
@@ -900,7 +901,7 @@ bool SYMBOL_LIB_TABLE_RESCUER::WriteRescueLibrary( wxWindow *aParent )
         }
     }
 
-    m_prj->SetElem( PROJECT::ELEM_SYMBOL_LIB_TABLE, nullptr );
+    m_prj->SetElem( PROJECT::ELEM::SYMBOL_LIB_TABLE, nullptr );
 
     // This can only happen if the symbol library table file was corrupted on write.
     if( !PROJECT_SCH::SchSymbolLibTable( m_prj ) )

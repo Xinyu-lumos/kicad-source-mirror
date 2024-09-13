@@ -33,7 +33,7 @@
 #include <confirm.h>
 #include <kidialog.h>
 #include <widgets/std_bitmap_button.h>
-#include "dialog_export_step_base.h"
+#include "dialog_export_step.h"
 #include "dialog_export_step_process.h"
 #include <footprint.h>
 #include <kiface_base.h>
@@ -65,104 +65,9 @@ static const std::map<wxString, int> c_formatExtToChoice = { { FILEEXT::StepFile
                                                              { FILEEXT::BrepFileExtension, 3 } };
 
 
-class DIALOG_EXPORT_STEP : public DIALOG_EXPORT_STEP_BASE
-{
-public:
-    enum STEP_ORIGIN_OPTION
-    {
-        STEP_ORIGIN_0,             // absolute coordinates
-        STEP_ORIGIN_PLOT_AXIS,     // origin is plot/drill axis origin
-        STEP_ORIGIN_GRID_AXIS,     // origin is grid origin
-        STEP_ORIGIN_BOARD_CENTER,  // origin is board center
-        STEP_ORIGIN_USER,          // origin is entered by user
-    };
 
-    DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString& aBoardPath );
-    ~DIALOG_EXPORT_STEP();
-
-protected:
-    void onBrowseClicked( wxCommandEvent& aEvent ) override;
-    void onUpdateUnits( wxUpdateUIEvent& aEvent ) override;
-    void onUpdateXPos( wxUpdateUIEvent& aEvent ) override;
-    void onUpdateYPos( wxUpdateUIEvent& aEvent ) override;
-    void onExportButton( wxCommandEvent& aEvent ) override;
-    void onFormatChoice( wxCommandEvent& event ) override;
-    void onCbExportComponents( wxCommandEvent& event ) override;
-    void OnComponentModeChange( wxCommandEvent& event ) override;
-
-    int GetOrgUnitsChoice() const
-    {
-        return m_STEP_OrgUnitChoice->GetSelection();
-    }
-
-    double GetXOrg() const
-    {
-        return EDA_UNIT_UTILS::UI::DoubleValueFromString( m_STEP_Xorg->GetValue() );
-    }
-
-    double GetYOrg()
-    {
-        return EDA_UNIT_UTILS::UI::DoubleValueFromString( m_STEP_Yorg->GetValue() );
-    }
-
-    STEP_ORIGIN_OPTION GetOriginOption();
-
-    bool GetNoUnspecifiedOption()
-    {
-        return m_cbRemoveUnspecified->GetValue();
-    }
-
-    bool GetNoDNPOption()
-    {
-        return m_cbRemoveDNP->GetValue();
-    }
-
-    bool GetSubstOption()
-    {
-        return m_cbSubstModels->GetValue();
-    }
-
-    bool GetOverwriteFile()
-    {
-        return m_cbOverwriteFile->GetValue();
-    }
-
-private:
-    enum class COMPONENT_MODE
-    {
-        EXPORT_ALL,
-        EXPORT_SELECTED,
-        CUSTOM_FILTER
-    };
-
-    PCB_EDIT_FRAME*    m_parent;
-    STEP_ORIGIN_OPTION m_origin;         // The last preference for STEP origin option
-    double             m_userOriginX;    // remember last User Origin X value
-    double             m_userOriginY;    // remember last User Origin Y value
-    int                m_originUnits;    // remember last units for User Origin
-    bool               m_noUnspecified;  // remember last preference for No Unspecified Component
-    bool               m_noDNP;          // remember last preference for No DNP Component
-    static bool        m_optimizeStep;   // remember last preference for Optimize STEP file (stored only for the session)
-    static bool        m_exportBoardBody;  // remember last preference to export board body (stored only for the session)
-    static bool        m_exportComponents; // remember last preference to export components (stored only for the session)
-    static bool        m_exportTracks;   // remember last preference to export tracks and vias (stored only for the session)
-    static bool        m_exportPads;     // remember last preference to export pads (stored only for the session)
-    static bool        m_exportZones;    // remember last preference to export zones (stored only for the session)
-    static bool        m_exportInnerCopper; // remember last preference to export inner layers (stored only for the session)
-    static bool        m_exportSilkscreen;  // remember last preference to export silkscreen (stored only for the session)
-    static bool        m_exportSoldermask;  // remember last preference to export soldermask (stored only for the session)
-    static bool        m_fuseShapes;     // remember last preference to fuse shapes (stored only for the session)
-    wxString           m_netFilter;      // filter copper nets
-    static wxString    m_componentFilter; // filter component reference designators
-    static COMPONENT_MODE m_componentMode;
-    wxString           m_boardPath;      // path to the exported board file
-    static int         m_toleranceLastChoice;  // Store m_tolerance option during a session
-    static int         m_formatLastChoice; // Store format option during a session
-};
-
-
-int  DIALOG_EXPORT_STEP::m_toleranceLastChoice = -1;     // Use default
-int  DIALOG_EXPORT_STEP::m_formatLastChoice = -1;    // Use default
+int  DIALOG_EXPORT_STEP::m_toleranceLastChoice = -1;    // Use default
+int  DIALOG_EXPORT_STEP::m_formatLastChoice = -1;       // Use default
 bool DIALOG_EXPORT_STEP::m_optimizeStep = true;
 bool DIALOG_EXPORT_STEP::m_exportBoardBody = true;
 bool DIALOG_EXPORT_STEP::m_exportComponents = true;
@@ -176,12 +81,12 @@ bool DIALOG_EXPORT_STEP::m_fuseShapes = false;
 DIALOG_EXPORT_STEP::COMPONENT_MODE DIALOG_EXPORT_STEP::m_componentMode = COMPONENT_MODE::EXPORT_ALL;
 wxString DIALOG_EXPORT_STEP::m_componentFilter;
 
-DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString& aBoardPath ) :
-    DIALOG_EXPORT_STEP_BASE( aParent )
+DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aEditFrame, const wxString& aBoardPath ) :
+        DIALOG_EXPORT_STEP_BASE( aEditFrame )
 {
     m_browseButton->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
 
-    m_parent = aParent;
+    m_editFrame = aEditFrame;
     m_boardPath = aBoardPath;
 
     SetupStandardButtons( { { wxID_OK,     _( "Export" ) },
@@ -189,11 +94,11 @@ DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString&
 
     // Build default output file name
     // (last saved filename in project or built from board filename)
-    wxString path = m_parent->GetLastPath( LAST_PATH_STEP );
+    wxString path = m_editFrame->GetLastPath( LAST_PATH_STEP );
 
     if( path.IsEmpty() )
     {
-        wxFileName brdFile( m_parent->GetBoard()->GetFileName() );
+        wxFileName brdFile( m_editFrame->GetBoard()->GetFileName() );
         brdFile.SetExt( wxT( "step" ) );
         path = brdFile.GetFullPath();
     }
@@ -205,7 +110,7 @@ DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString&
 
     SetFocus();
 
-    PCBNEW_SETTINGS* cfg = m_parent->GetPcbNewSettings();
+    PCBNEW_SETTINGS* cfg = m_editFrame->GetPcbNewSettings();
 
     m_origin = static_cast<STEP_ORIGIN_OPTION>( cfg->m_ExportStep.origin_mode );
 
@@ -264,7 +169,7 @@ DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString&
     wxString bad_scales;
     size_t   bad_count = 0;
 
-    for( FOOTPRINT* fp : aParent->GetBoard()->Footprints() )
+    for( FOOTPRINT* fp : m_editFrame->GetBoard()->Footprints() )
     {
         for( const FP_3DMODEL& model : fp->Models() )
         {
@@ -285,7 +190,7 @@ DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString&
     {
         wxString extendedMsg = _( "Non-unity scaled models:" ) + wxT( "\n" ) + bad_scales;
 
-        KIDIALOG msgDlg( m_parent, _( "Scaled models detected.  "
+        KIDIALOG msgDlg( m_editFrame, _( "Scaled models detected.  "
                                       "Model scaling is not reliable for mechanical export." ),
                          _( "Model Scale Warning" ), wxOK | wxICON_WARNING );
         msgDlg.SetExtendedMessage( extendedMsg );
@@ -302,6 +207,10 @@ DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString&
 
     if( m_formatLastChoice >= 0 )
         m_choiceFormat->SetSelection( m_formatLastChoice );
+    else
+        // ensure the selected fmt and the output file ext are synchronized the first time
+        // the dialog is opened
+        OnFmtChoiceOptionChanged();
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     finishDialogSettings();
@@ -316,7 +225,7 @@ DIALOG_EXPORT_STEP::~DIALOG_EXPORT_STEP()
 
     try
     {
-        cfg = m_parent->GetPcbNewSettings();
+        cfg = m_editFrame->GetPcbNewSettings();
     }
     catch( const std::runtime_error& e )
     {
@@ -475,6 +384,12 @@ void DIALOG_EXPORT_STEP::onBrowseClicked( wxCommandEvent& aEvent )
 
 void DIALOG_EXPORT_STEP::onFormatChoice( wxCommandEvent& event )
 {
+    OnFmtChoiceOptionChanged();
+}
+
+
+void DIALOG_EXPORT_STEP::OnFmtChoiceOptionChanged()
+{
     wxString newExt = c_formatCommand[m_choiceFormat->GetSelection()];
     wxString path = m_outputFileName->GetValue();
 
@@ -510,13 +425,13 @@ void DIALOG_EXPORT_STEP::OnComponentModeChange( wxCommandEvent& event )
 void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
 {
     wxString path = m_outputFileName->GetValue();
-    m_parent->SetLastPath( LAST_PATH_STEP, path );
+    m_editFrame->SetLastPath( LAST_PATH_STEP, path );
 
     // Build the absolute path of current output directory to preselect it in the file browser.
     std::function<bool( wxString* )> textResolver =
             [&]( wxString* token ) -> bool
             {
-                return m_parent->GetBoard()->ResolveTextVar( token, 0 );
+                return m_editFrame->GetBoard()->ResolveTextVar( token, 0 );
             };
 
     path = ExpandTextVars( path, &textResolver );
@@ -570,7 +485,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
 
     // Arc to segment approx error (not critical here: we do not use the outline shape):
     int maxError = pcbIUScale.mmToIU( 0.005 );
-    bool success = BuildBoardPolygonOutlines( m_parent->GetBoard(), outline, maxError,
+    bool success = BuildBoardPolygonOutlines( m_editFrame->GetBoard(), outline, maxError,
                                               chainingEpsilon, nullptr );
     if( !success )
     {
@@ -678,7 +593,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
     case COMPONENT_MODE::EXPORT_SELECTED:
     {
         wxArrayString components;
-        SELECTION& selection = m_parent->GetCurrentSelection();
+        SELECTION& selection = m_editFrame->GetCurrentSelection();
 
         std::for_each( selection.begin(), selection.end(),
                        [&components]( EDA_ITEM* item )
@@ -735,7 +650,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
 
     case STEP_ORIGIN_BOARD_CENTER:
     {
-        BOX2I     bbox = m_parent->GetBoard()->ComputeBoundingBox( true, false );
+        BOX2I     bbox = m_editFrame->GetBoard()->ComputeBoundingBox( true, false );
         double    xOrg = pcbIUScale.IUTomm( bbox.GetCenter().x );
         double    yOrg = pcbIUScale.IUTomm( bbox.GetCenter().y );
         LOCALE_IO dummy;
@@ -764,4 +679,16 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
 
     DIALOG_EXPORT_STEP_LOG* log = new DIALOG_EXPORT_STEP_LOG( this, cmdK2S );
     log->ShowModal();
+}
+
+
+double DIALOG_EXPORT_STEP::GetXOrg() const
+{
+    return EDA_UNIT_UTILS::UI::DoubleValueFromString( m_STEP_Xorg->GetValue() );
+}
+
+
+double DIALOG_EXPORT_STEP::GetYOrg()
+{
+    return EDA_UNIT_UTILS::UI::DoubleValueFromString( m_STEP_Yorg->GetValue() );
 }

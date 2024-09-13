@@ -508,7 +508,11 @@ bool BOARD_NETLIST_UPDATER::updateFootprintParameters( FOOTPRINT* aPcbFootprint,
     wxString sheetfile;
     wxString fpFilters;
 
-    if( aNetlistComponent->GetProperties().count( wxT( "Sheetname" ) ) > 0 )
+    wxString humanSheetPath = aNetlistComponent->GetHumanReadablePath();
+
+    if( !humanSheetPath.empty() )
+        sheetname = humanSheetPath;
+    else if( aNetlistComponent->GetProperties().count( wxT( "Sheetname" ) ) > 0 )
         sheetname = aNetlistComponent->GetProperties().at( wxT( "Sheetname" ) );
 
     if( aNetlistComponent->GetProperties().count( wxT( "Sheetfile" ) ) > 0 )
@@ -1056,6 +1060,15 @@ bool BOARD_NETLIST_UPDATER::updateCopperZoneNets( NETLIST& aNetlist )
                 {
                     PCB_LAYER_ID layer = zone->GetLayer();
                     VECTOR2I     pos = zone->GetPosition();
+
+                    if( m_frame && m_frame->GetPcbNewSettings() )
+                    {
+                        if( m_frame->GetPcbNewSettings()->m_Display.m_DisplayInvertXAxis )
+                            pos.x *= -1;
+
+                        if( m_frame->GetPcbNewSettings()->m_Display.m_DisplayInvertYAxis )
+                            pos.y *= -1;
+                    }
 
                     msg.Printf( _( "Copper zone on layer %s at (%s, %s) has no pads connected." ),
                                 m_board->GetLayerName( layer ),

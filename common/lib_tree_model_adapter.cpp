@@ -247,6 +247,12 @@ void LIB_TREE_MODEL_ADAPTER::DoAddLibrary( const wxString& aNodeName, const wxSt
 }
 
 
+void LIB_TREE_MODEL_ADAPTER::DoRemoveLibrary( const wxString& aNodeName )
+{
+    m_tree.RemoveLib( aNodeName );
+}
+
+
 void LIB_TREE_MODEL_ADAPTER::UpdateSearchString( const wxString& aSearch, bool aState )
 {
     {
@@ -290,7 +296,7 @@ void LIB_TREE_MODEL_ADAPTER::UpdateSearchString( const wxString& aSearch, bool a
             wxString             term = tokenizer.GetNextToken().Lower();
             EDA_COMBINED_MATCHER termMatcher( term, CTX_LIBITEM );
 
-            m_tree.UpdateScore( &termMatcher, wxEmptyString, firstTerm ? m_filter : nullptr );
+            m_tree.UpdateScore( &termMatcher, wxEmptyString, m_filter );
             firstTerm = false;
 
             if( term.Contains( ":" ) )
@@ -300,7 +306,7 @@ void LIB_TREE_MODEL_ADAPTER::UpdateSearchString( const wxString& aSearch, bool a
                 wxString             itemName = term.AfterFirst( ':' );
                 EDA_COMBINED_MATCHER itemNameMatcher( itemName, CTX_LIBITEM );
 
-                m_tree.UpdateScore( &itemNameMatcher, lib, nullptr );
+                m_tree.UpdateScore( &itemNameMatcher, lib, m_filter );
             }
         }
 
@@ -383,7 +389,7 @@ void LIB_TREE_MODEL_ADAPTER::resortTree()
 
 void LIB_TREE_MODEL_ADAPTER::PinLibrary( LIB_TREE_NODE* aTreeNode )
 {
-    m_parent->Prj().PinLibrary( aTreeNode->m_LibId.GetLibNickname(), isSymbolModel() );
+    m_parent->Prj().PinLibrary( aTreeNode->m_LibId.GetLibNickname(), getLibType() );
     aTreeNode->m_Pinned = true;
 
     resortTree();
@@ -393,7 +399,7 @@ void LIB_TREE_MODEL_ADAPTER::PinLibrary( LIB_TREE_NODE* aTreeNode )
 
 void LIB_TREE_MODEL_ADAPTER::UnpinLibrary( LIB_TREE_NODE* aTreeNode )
 {
-    m_parent->Prj().UnpinLibrary( aTreeNode->m_LibId.GetLibNickname(), isSymbolModel() );
+    m_parent->Prj().UnpinLibrary( aTreeNode->m_LibId.GetLibNickname(), getLibType() );
     aTreeNode->m_Pinned = false;
 
     resortTree();

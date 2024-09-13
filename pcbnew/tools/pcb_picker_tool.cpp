@@ -33,8 +33,36 @@
 
 PCB_PICKER_TOOL::PCB_PICKER_TOOL() :
         PCB_TOOL_BASE( "pcbnew.InteractivePicker" ),
-        PICKER_TOOL_BASE()
+        PICKER_TOOL_BASE() // calls reset()
 {
+}
+
+
+bool PCB_PICKER_TOOL::Init()
+{
+    PCB_BASE_FRAME*    frame = getEditFrame<PCB_BASE_FRAME>();
+    MAGNETIC_SETTINGS& magneticSettings = *frame->GetMagneticItemsSettings();
+    CONDITIONAL_MENU&  menu = m_menu->GetMenu();
+
+    const auto snapIsSetToAllLayers = [&]( const SELECTION& aSel )
+    {
+        return magneticSettings.allLayers;
+    };
+
+    // "Cancel" goes at the top of the context menu when a tool is active
+    menu.AddItem( ACTIONS::cancelInteractive, SELECTION_CONDITIONS::ShowAlways, 1 );
+
+    menu.AddSeparator( 1 );
+
+    menu.AddItem( PCB_ACTIONS::magneticSnapAllLayers, !snapIsSetToAllLayers, 1 );
+    menu.AddItem( PCB_ACTIONS::magneticSnapActiveLayer, snapIsSetToAllLayers, 1 );
+
+    menu.AddSeparator( 1 );
+
+    if( frame )
+        frame->AddStandardSubMenus( *m_menu.get() );
+
+    return true;
 }
 
 
@@ -79,7 +107,7 @@ int PCB_PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
         {
             grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
             grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
-            cursorPos = grid.BestSnapAnchor( cursorPos, nullptr );
+            cursorPos = grid.BestSnapAnchor( cursorPos, m_layerMask );
             controls->ForceCursorPosition( true, cursorPos );
         }
 
@@ -153,7 +181,7 @@ int PCB_PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
         else if( evt->IsClick( BUT_RIGHT ) )
         {
             PCB_SELECTION dummy;
-            m_menu.ShowContextMenu( dummy );
+            m_menu->ShowContextMenu( dummy );
         }
         // TODO: It'd be nice to be able to say "don't allow any non-trivial editing actions",
         // but we don't at present have that, so we just knock out some of the egregious ones.

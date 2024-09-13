@@ -30,12 +30,13 @@ class PANEL_KICAD_LAUNCHER : public PANEL_KICAD_LAUNCHER_BASE
 public:
     PANEL_KICAD_LAUNCHER( wxWindow* aParent );
 
-    virtual ~PANEL_KICAD_LAUNCHER() = default;
+    ~PANEL_KICAD_LAUNCHER();
 
     void CreateLaunchers();
 
 private:
-    void onThemeChanged( wxSysColourChangedEvent &aEvent );
+    void onThemeChanged( wxSysColourChangedEvent& aEvent );
+    void onLauncherButtonClick( wxCommandEvent& aEvent );
 
 private:
     TOOL_MANAGER* m_toolManager;

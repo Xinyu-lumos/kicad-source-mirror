@@ -73,7 +73,7 @@ bool SYMBOL_EDITOR_DRAWING_TOOLS::Init()
                 return item && item->IsNew();
             };
 
-    m_menu.GetMenu().AddItem( ACTIONS::finishInteractive, isDrawingCondition, 2 );
+    m_menu->GetMenu().AddItem( ACTIONS::finishInteractive, isDrawingCondition, 2 );
 
     return true;
 }
@@ -213,7 +213,10 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
                 case SCH_PIN_T:
                 {
                     item = pinTool->CreatePin( cursorPos, symbol );
-                    g_lastPin = item->m_Uuid;
+
+                    if( item )
+                        g_lastPin = item->m_Uuid;
+
                     break;
                 }
                 case SCH_TEXT_T:
@@ -285,13 +288,13 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
                 case SCH_PIN_T:
                     pinTool->PlacePin( static_cast<SCH_PIN*>( item ) );
                     item->ClearEditFlags();
-                    commit.Push( _( "Add Pin" ) );
+                    commit.Push( _( "Place Pin" ) );
                     break;
 
                 case SCH_TEXT_T:
                     symbol->AddDrawItem( static_cast<SCH_TEXT*>( item ) );
                     item->ClearEditFlags();
-                    commit.Push( _( "Add Text" ) );
+                    commit.Push( _( "Draw Text" ) );
                     break;
 
                 default:
@@ -309,7 +312,7 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
             if( !item )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
+            m_menu->ShowContextMenu( m_selectionTool->GetSelection() );
         }
         else if( item && ( evt->IsAction( &ACTIONS::refreshPreview ) || evt->IsMotion() ) )
         {
@@ -575,7 +578,7 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::doDrawShape( const TOOL_EVENT& aEvent, std::opt
             if( !item )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
+            m_menu->ShowContextMenu( m_selectionTool->GetSelection() );
         }
         else
         {
@@ -643,7 +646,7 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::PlaceAnchor( const TOOL_EVENT& aEvent )
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
+            m_menu->ShowContextMenu( m_selectionTool->GetSelection() );
         }
         else
         {
@@ -787,7 +790,7 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::ImportGraphics( const TOOL_EVENT& aEvent )
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
+            m_menu->ShowContextMenu( m_selectionTool->GetSelection() );
         }
         else if( evt->IsClick( BUT_LEFT ) || evt->IsDblClick( BUT_LEFT ) )
         {
@@ -844,7 +847,9 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::RepeatDrawItem( const TOOL_EVENT& aEvent )
     if( sourcePin )
     {
         SCH_PIN* pin = pinTool->RepeatPin( sourcePin );
-        g_lastPin = pin->m_Uuid;
+
+        if( pin )
+            g_lastPin = pin->m_Uuid;
 
         m_toolMgr->RunAction( EE_ACTIONS::clearSelection );
 

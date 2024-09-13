@@ -72,6 +72,8 @@
 #include <macros.h>
 #include <project_pcb.h>
 #include <common.h>
+#include <dialog_HTML_reporter_base.h>
+#include <widgets/wx_html_report_box.h>
 
 // clang-format off
 
@@ -234,7 +236,7 @@ protected:
             LIB_TABLE_ROW*  row = tbl->at( (size_t) aRow );
             const wxString& options = row->GetOptions();
             wxString        result = options;
-            STRING_UTF8_MAP choices;
+            std::map<std::string, UTF8> choices;
 
             PCB_IO_MGR::PCB_FILE_T pi_type = PCB_IO_MGR::EnumFromStr( row->GetType() );
             IO_RELEASER<PCB_IO>    pi( PCB_IO_MGR::PluginFind( pi_type ) );
@@ -816,6 +818,7 @@ void PANEL_FP_LIB_TABLE::onMigrateLibraries( wxCommandEvent& event )
     wxArrayInt rowsToMigrate;
     wxString   kicadType = PCB_IO_MGR::ShowType( PCB_IO_MGR::KICAD_SEXP );
     wxString   msg;
+    DIALOG_HTML_REPORTER errorReporter( this );
 
     for( int row : selectedRows )
     {
@@ -882,9 +885,10 @@ void PANEL_FP_LIB_TABLE::onMigrateLibraries( wxCommandEvent& event )
         }
 
         wxString options = m_cur_grid->GetCellValue( row, COL_OPTIONS );
-        std::unique_ptr<STRING_UTF8_MAP> props( LIB_TABLE::ParseOptions( options.ToStdString() ) );
+        std::unique_ptr<std::map<std::string, UTF8>> props( LIB_TABLE::ParseOptions( options.ToStdString() ) );
 
-        if( PCB_IO_MGR::ConvertLibrary( props.get(), legacyLib.GetFullPath(), newLib.GetFullPath() ) )
+        if( PCB_IO_MGR::ConvertLibrary( props.get(), legacyLib.GetFullPath(),
+                                        newLib.GetFullPath(), errorReporter.m_Reporter ) )
         {
             relPath = NormalizePath( newLib.GetFullPath(), &Pgm().GetLocalEnvVariables(),
                                      m_project );
@@ -902,6 +906,12 @@ void PANEL_FP_LIB_TABLE::onMigrateLibraries( wxCommandEvent& event )
             msg.Printf( _( "Failed to save footprint library file '%s'." ), newLib.GetFullPath() );
             DisplayErrorMessage( wxGetTopLevelParent( this ), msg );
         }
+    }
+
+    if( errorReporter.m_Reporter->HasMessage() )
+    {
+        errorReporter.m_Reporter->Flush(); // Build HTML messages
+        errorReporter.ShowModal();
     }
 }
 

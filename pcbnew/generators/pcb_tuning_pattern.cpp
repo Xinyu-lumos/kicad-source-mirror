@@ -266,6 +266,18 @@ public:
         return wxString( _( "Tuning Patterns" ) );
     }
 
+    BITMAPS GetMenuImage() const override
+    {
+        switch( m_tuningMode )
+        {
+        case SINGLE:         return BITMAPS::ps_tune_length;           break;
+        case DIFF_PAIR:      return BITMAPS::ps_diff_pair_tune_length; break;
+        case DIFF_PAIR_SKEW: return BITMAPS::ps_diff_pair_tune_phase;  break;
+        }
+
+        return BITMAPS::unknown;
+    }
+
     static PCB_TUNING_PATTERN* CreateNew( GENERATOR_TOOL* aTool, PCB_BASE_EDIT_FRAME* aFrame,
                                           BOARD_CONNECTED_ITEM* aStartItem,
                                           LENGTH_TUNING_MODE aMode );
@@ -1289,7 +1301,7 @@ bool PCB_TUNING_PATTERN::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COM
     KIGFX::VIEW*     view = aTool->GetManager()->GetView();
     PNS::ROUTER*     router = aTool->Router();
     PNS_KICAD_IFACE* iface = aTool->GetInterface();
-    int              layer = GetLayer();
+    PCB_LAYER_ID     layer = GetLayer();
 
     auto hideRemovedItems = [&]( bool aHide )
     {
@@ -1306,7 +1318,7 @@ bool PCB_TUNING_PATTERN::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COM
         }
     };
 
-    iface->SetStartLayer( layer );
+    iface->SetStartLayerFromPCBNew( layer );
 
     if( router->RoutingInProgress() )
     {
@@ -1972,7 +1984,9 @@ std::vector<EDA_ITEM*> PCB_TUNING_PATTERN::GetPreviewItems( GENERATOR_TOOL* aToo
             PNS::ITEM_SET items = placer->TunedPath();
 
             for( PNS::ITEM* item : items )
-                previewItems.push_back( new ROUTER_PREVIEW_ITEM( item, view, PNS_HOVER_ITEM ) );
+                previewItems.push_back( new ROUTER_PREVIEW_ITEM( item,
+                                                                  aTool->Router()->GetInterface(),
+                                                                  view, PNS_HOVER_ITEM ) );
         }
 
         TUNING_STATUS_VIEW_ITEM* statusItem = new TUNING_STATUS_VIEW_ITEM( aFrame );
@@ -2386,7 +2400,7 @@ int DRAWING_TOOL::PlaceTuningPattern( const TOOL_EVENT& aEvent )
         else if( evt->IsClick( BUT_RIGHT ) )
         {
             PCB_SELECTION dummy;
-            m_menu.ShowContextMenu( dummy );
+            m_menu->ShowContextMenu( dummy );
         }
         else if( evt->IsAction( &PCB_ACTIONS::spacingIncrease )
                  || evt->IsAction( &PCB_ACTIONS::spacingDecrease ) )

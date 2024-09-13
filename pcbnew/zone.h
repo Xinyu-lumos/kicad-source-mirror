@@ -126,7 +126,7 @@ public:
     void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
     wxString GetFriendlyName() const override;
 
-    void SetLayerSet( LSET aLayerSet ) override;
+    void SetLayerSet( const LSET& aLayerSet ) override;
     virtual LSET GetLayerSet() const override { return m_layerSet; }
 
     const wxString& GetZoneName() const { return m_zoneName; }
@@ -709,6 +709,8 @@ public:
      * Accessors to parameters used in Rule Area zones:
      */
     bool GetIsRuleArea() const           { return m_isRuleArea; }
+    RULE_AREA_TYPE GetRuleAreaType() const { return m_ruleAreaType; }
+    const wxString& GetRuleAreaExpression( ) const { return m_ruleAreaExpression; }
     bool GetDoNotAllowCopperPour() const { return m_doNotAllowCopperPour; }
     bool GetDoNotAllowVias() const       { return m_doNotAllowVias; }
     bool GetDoNotAllowTracks() const     { return m_doNotAllowTracks; }
@@ -716,6 +718,8 @@ public:
     bool GetDoNotAllowFootprints() const { return m_doNotAllowFootprints; }
 
     void SetIsRuleArea( bool aEnable )           { m_isRuleArea = aEnable; }
+    void SetRuleAreaType( RULE_AREA_TYPE aType ) { m_ruleAreaType = aType; }
+    void SetRuleAreaExpression( const wxString& aExpr ) { m_ruleAreaExpression = aExpr; }
     void SetDoNotAllowCopperPour( bool aEnable ) { m_doNotAllowCopperPour = aEnable; }
     void SetDoNotAllowVias( bool aEnable )       { m_doNotAllowVias = aEnable; }
     void SetDoNotAllowTracks( bool aEnable )     { m_doNotAllowTracks = aEnable; }
@@ -824,6 +828,8 @@ protected:
      * It will be never filled, and DRC should test for pads, tracks and vias
      */
     bool m_isRuleArea;
+    RULE_AREA_TYPE        m_ruleAreaType;
+    wxString m_ruleAreaExpression;
 
     /* A zone outline can be a teardrop zone with different rules for priority
      * (always bigger priority than copper zones) and never removed from a
@@ -926,6 +932,7 @@ protected:
 DECLARE_ENUM_TO_WXANY( ZONE_CONNECTION )
 DECLARE_ENUM_TO_WXANY( ZONE_FILL_MODE )
 DECLARE_ENUM_TO_WXANY( ISLAND_REMOVAL_MODE )
+DECLARE_ENUM_TO_WXANY( RULE_AREA_TYPE )
 #endif
 
 #endif  // ZONE_H

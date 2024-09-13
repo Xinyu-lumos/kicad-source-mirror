@@ -33,6 +33,7 @@ using namespace std::placeholders;
 #include <view/view_controls.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <geometry/seg.h>
+#include <geometry/vector_utils.h>
 #include <confirm.h>
 #include <tools/pcb_actions.h>
 #include <tools/pcb_selection_tool.h>
@@ -515,6 +516,10 @@ int PCB_POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
     getViewControls()->ShowCursor( true );
 
     PCB_GRID_HELPER grid( m_toolMgr, editFrame->GetMagneticItemsSettings() );
+
+    // Use the original object as a construction item
+    std::unique_ptr<BOARD_ITEM> clone;
+
     m_editPoints = makePoints( item );
 
     if( !m_editPoints )
@@ -603,6 +608,13 @@ int PCB_POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
                     if( &point != m_editedPoint )
                         point.SetActive( false );
                 }
+
+                // When we start dragging, create a clone of the item to use as the original
+                // reference geometry (e.g. for intersections and extensions)
+                std::unique_ptr<BOARD_ITEM> oldClone = std::move( clone );
+                clone.reset( static_cast<BOARD_ITEM*>( item->Clone() ) );
+                grid.AddConstructionItems( { clone.get() }, false, true );
+                // Now old clone can be safely deleted
             }
 
             // Keep point inside of limits with some padding
@@ -761,9 +773,12 @@ int PCB_POINT_EDITOR::movePoint( const TOOL_EVENT& aEvent )
     if( !m_editPoints || !m_editPoints->GetParent() || !HasPoint() )
         return 0;
 
-    BOARD_COMMIT commit( frame() );
+    PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+
+    BOARD_COMMIT commit( editFrame );
     commit.Stage( m_editPoints->GetParent(), CHT_MODIFY );
 
+    VECTOR2I pt = editFrame->GetOriginTransforms().ToDisplayAbs( m_editedPoint->GetPosition() );
     wxString title;
     wxString msg;
 
@@ -778,11 +793,12 @@ int PCB_POINT_EDITOR::movePoint( const TOOL_EVENT& aEvent )
         msg = _( "Move Corner" );
     }
 
-    WX_PT_ENTRY_DIALOG dlg( frame(), title, _( "X:" ), _( "Y:" ), m_editedPoint->GetPosition() );
+    WX_PT_ENTRY_DIALOG dlg( editFrame, title, _( "X:" ), _( "Y:" ), pt );
 
     if( dlg.ShowModal() == wxID_OK )
     {
-        m_editedPoint->SetPosition( dlg.GetValue() );
+        pt = editFrame->GetOriginTransforms().FromDisplayAbs( dlg.GetValue() );
+        m_editedPoint->SetPosition( pt );
         updateItem( &commit );
         commit.Push( msg );
     }
@@ -1201,6 +1217,121 @@ void PCB_POINT_EDITOR::editArcMidKeepEndpoints( PCB_SHAPE* aArc, const VECTOR2I&
     aArc->SetArcGeometry( aStart, mid, aEnd );
 }
 
+/**
+ * Class to help update the text position of a dimension when the crossbar changes.
+ *
+ * Choosing the right way to update the text position requires some care, and
+ * needs to hold some state from the original dimension position so the text can be placed
+ * in a similar position relative to the new crossbar. This class handles that state
+ * and the logic to find the new text position.
+ */
+class DIM_ALIGNED_TEXT_UPDATER
+{
+public:
+    DIM_ALIGNED_TEXT_UPDATER( PCB_DIM_ALIGNED& aDimension ) :
+            m_dimension( aDimension ), m_originalTextPos( aDimension.GetTextPos() ),
+            m_oldCrossBar( SEG{ aDimension.GetCrossbarStart(), aDimension.GetCrossbarEnd() } )
+    {
+    }
+
+    void UpdateTextAfterChange()
+    {
+        const SEG newCrossBar{ m_dimension.GetCrossbarStart(), m_dimension.GetCrossbarEnd() };
+
+        if( newCrossBar == m_oldCrossBar )
+        {
+            // Crossbar didn't change, text doesn't need to change
+            return;
+        }
+
+        const VECTOR2I newTextPos = getDimensionNewTextPosition();
+        m_dimension.SetTextPos( newTextPos );
+
+        const GR_TEXT_H_ALIGN_T oldJustify = m_dimension.GetHorizJustify();
+
+        // We may need to update the justification if we go past vertical.
+        if( oldJustify == GR_TEXT_H_ALIGN_T::GR_TEXT_H_ALIGN_LEFT
+            || oldJustify == GR_TEXT_H_ALIGN_T::GR_TEXT_H_ALIGN_RIGHT )
+        {
+            const VECTOR2I oldProject = m_oldCrossBar.LineProject( m_originalTextPos );
+            const VECTOR2I newProject = newCrossBar.LineProject( newTextPos );
+
+            const VECTOR2I oldProjectedOffset =
+                    oldProject - m_oldCrossBar.NearestPoint( oldProject );
+            const VECTOR2I newProjectedOffset = newProject - newCrossBar.NearestPoint( newProject );
+
+            const bool textWasLeftOf = oldProjectedOffset.x < 0
+                                       || ( oldProjectedOffset.x == 0 && oldProjectedOffset.y > 0 );
+            const bool textIsLeftOf = newProjectedOffset.x < 0
+                                      || ( newProjectedOffset.x == 0 && newProjectedOffset.y > 0 );
+
+            if( textWasLeftOf != textIsLeftOf )
+            {
+                // Flip whatever the user had set
+                m_dimension.SetHorizJustify(
+                        ( oldJustify == GR_TEXT_H_ALIGN_T::GR_TEXT_H_ALIGN_LEFT )
+                                ? GR_TEXT_H_ALIGN_T::GR_TEXT_H_ALIGN_RIGHT
+                                : GR_TEXT_H_ALIGN_T::GR_TEXT_H_ALIGN_LEFT );
+            }
+        }
+
+        // Update the dimension (again) to ensure the text knockouts are correct
+        m_dimension.Update();
+    }
+
+private:
+    VECTOR2I getDimensionNewTextPosition()
+    {
+        const SEG newCrossBar{ m_dimension.GetCrossbarStart(), m_dimension.GetCrossbarEnd() };
+
+        const EDA_ANGLE oldAngle = EDA_ANGLE( m_oldCrossBar.B - m_oldCrossBar.A );
+        const EDA_ANGLE newAngle = EDA_ANGLE( newCrossBar.B - newCrossBar.A );
+        const EDA_ANGLE rotation = oldAngle - newAngle;
+
+        // There are two modes - when the text is between the crossbar points, and when it's not.
+        if( !KIGEOM::PointProjectsOntoSegment( m_originalTextPos, m_oldCrossBar ) )
+        {
+            const VECTOR2I cbNearestEndToText =
+                    KIGEOM::GetNearestEndpoint( m_oldCrossBar, m_originalTextPos );
+            const VECTOR2I rotTextOffsetFromCbCenter =
+                    GetRotated( m_originalTextPos - m_oldCrossBar.Center(), rotation );
+            const VECTOR2I rotTextOffsetFromCbEnd =
+                    GetRotated( m_originalTextPos - cbNearestEndToText, rotation );
+
+            // Which of the two crossbar points is now in the right direction? They could be swapped over now.
+            // If zero-length, doesn't matter, they're the same thing
+            const bool startIsInOffsetDirection =
+                    KIGEOM::PointIsInDirection( m_dimension.GetCrossbarStart(),
+                                                rotTextOffsetFromCbCenter, newCrossBar.Center() );
+
+            const VECTOR2I& newCbRefPt = startIsInOffsetDirection ? m_dimension.GetCrossbarStart()
+                                                                  : m_dimension.GetCrossbarEnd();
+
+            // Apply the new offset to the correct crossbar point
+            return newCbRefPt + rotTextOffsetFromCbEnd;
+        }
+
+        // If the text was between the crossbar points, it should stay there, but we need to find a
+        // good place for it. Keep it the same distance from the crossbar line, but rotated as needed.
+
+        const VECTOR2I origTextPointProjected = m_oldCrossBar.NearestPoint( m_originalTextPos );
+        const double   oldRatio =
+                KIGEOM::GetLengthRatioFromStart( origTextPointProjected, m_oldCrossBar );
+
+        // Perpendicular from the crossbar line to the text position
+        // We need to keep this length constant
+        const VECTOR2I rotCbNormalToText =
+                GetRotated( m_originalTextPos - origTextPointProjected, rotation );
+
+        const VECTOR2I newProjected = newCrossBar.A + ( newCrossBar.B - newCrossBar.A ) * oldRatio;
+        return newProjected + rotCbNormalToText;
+    }
+
+    PCB_DIM_ALIGNED& m_dimension;
+    const VECTOR2I   m_originalTextPos;
+    const SEG        m_oldCrossBar;
+};
+
 
 void PCB_POINT_EDITOR::updateItem( BOARD_COMMIT* aCommit )
 {
@@ -1618,6 +1749,8 @@ void PCB_POINT_EDITOR::updateItem( BOARD_COMMIT* aCommit )
     {
         PCB_DIM_ALIGNED* dimension = static_cast<PCB_DIM_ALIGNED*>( item );
 
+        DIM_ALIGNED_TEXT_UPDATER textPositionUpdater( *dimension );
+
         // Check which point is currently modified and updated dimension's points respectively
         if( isModified( m_editPoints->Point( DIM_CROSSBARSTART ) ) )
         {
@@ -1675,12 +1808,15 @@ void PCB_POINT_EDITOR::updateItem( BOARD_COMMIT* aCommit )
             dimension->Update();
         }
 
+        textPositionUpdater.UpdateTextAfterChange();
         break;
     }
 
     case PCB_DIM_ORTHOGONAL_T:
     {
         PCB_DIM_ORTHOGONAL* dimension = static_cast<PCB_DIM_ORTHOGONAL*>( item );
+
+        DIM_ALIGNED_TEXT_UPDATER textPositionUpdater( *dimension );
 
         if( isModified( m_editPoints->Point( DIM_CROSSBARSTART ) ) ||
             isModified( m_editPoints->Point( DIM_CROSSBAREND ) ) )
@@ -1731,7 +1867,7 @@ void PCB_POINT_EDITOR::updateItem( BOARD_COMMIT* aCommit )
         {
             dimension->SetEnd( m_editedPoint->GetPosition() );
         }
-        else if( isModified( m_editPoints->Point(DIM_TEXT ) ) )
+        else if( isModified( m_editPoints->Point( DIM_TEXT ) ) )
         {
             // Force manual mode if we weren't already in it
             dimension->SetTextPositionMode( DIM_TEXT_POSITION::MANUAL );
@@ -1739,6 +1875,9 @@ void PCB_POINT_EDITOR::updateItem( BOARD_COMMIT* aCommit )
         }
 
         dimension->Update();
+
+        // After recompute, find the new text position
+        textPositionUpdater.UpdateTextAfterChange();
 
         break;
     }

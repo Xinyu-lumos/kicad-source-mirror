@@ -114,6 +114,7 @@ public:
     int EditWithSymbolEditor( const TOOL_EVENT& aEvent );
     int ShowCvpcb( const TOOL_EVENT& aEvent );
     int Annotate( const TOOL_EVENT& aEvent );
+    int IncrementAnnotations( const TOOL_EVENT& aEvent );
     int EditSymbolFields( const TOOL_EVENT& aEvent );
     int EditSymbolLibraryLinks( const TOOL_EVENT& aEvent );
     int ShowPcbNew( const TOOL_EVENT& aEvent );
@@ -129,6 +130,7 @@ public:
     int ShowHierarchy( const TOOL_EVENT& aEvent );
     int ShowNetNavigator( const TOOL_EVENT& aEvent );
     int ToggleProperties( const TOOL_EVENT& aEvent );
+    int ToggleLibraryTree( const TOOL_EVENT& aEvent );
 
     int ToggleHiddenPins( const TOOL_EVENT& aEvent );
     int ToggleHiddenFields( const TOOL_EVENT& aEvent );

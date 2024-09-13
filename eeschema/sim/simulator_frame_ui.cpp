@@ -834,12 +834,14 @@ void SIMULATOR_FRAME_UI::rebuildSignalsGrid( wxString aFilter )
                 attr->SetReadOnly();    // not really; we delegate interactivity to GRID_TRICKS
                 attr->SetAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
                 m_signalsGrid->SetAttr( row, COL_CURSOR_1, attr );
+                m_signalsGrid->SetCellValue( row, COL_CURSOR_1, trace->GetCursor( 1 ) ? "1" : "0" );
 
                 attr = new wxGridCellAttr;
                 attr->SetRenderer( new wxGridCellBoolRenderer() );
                 attr->SetReadOnly();    // not really; we delegate interactivity to GRID_TRICKS
                 attr->SetAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
                 m_signalsGrid->SetAttr( row, COL_CURSOR_2, attr );
+                m_signalsGrid->SetCellValue( row, COL_CURSOR_2, trace->GetCursor( 2 ) ? "1" : "0" );
             }
 
             row++;
@@ -1860,8 +1862,7 @@ void SIMULATOR_FRAME_UI::applyUserDefinedSignals()
 
 void SIMULATOR_FRAME_UI::applyTuners()
 {
-    wxString            errors;
-    WX_STRING_REPORTER  reporter( &errors );
+    WX_STRING_REPORTER reporter;
 
     for( const TUNER_SLIDER* tuner : m_tuners )
     {
@@ -1891,7 +1892,8 @@ void SIMULATOR_FRAME_UI::applyTuners()
     }
 
     if( reporter.HasMessage() )
-        DisplayErrorMessage( this, _( "Could not apply tuned value(s):" ) + wxS( "\n" ) + errors );
+        DisplayErrorMessage( this, _( "Could not apply tuned value(s):" ) + wxS( "\n" )
+                                           + reporter.GetMessages() );
 }
 
 
@@ -2051,7 +2053,6 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
                         CURSOR* cursor = new CURSOR( aTrace, aPlotTab );
 
                         cursor->SetName( aSignalName );
-                        cursor->SetPen( wxPen( aTrace->GetTraceColour() ) );
                         cursor->SetCoordX( aCursor_js[ "position" ] );
 
                         aTrace->SetCursor( aCursorId, cursor );

@@ -51,7 +51,6 @@
 #include <widgets/wx_infobar.h>
 #include <widgets/wx_progress_reporters.h>
 #include <settings/settings_manager.h>
-#include <string_utf8_map.h>
 #include <paths.h>
 #include <pgm_base.h>
 #include <project/project_file.h>
@@ -589,7 +588,11 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         pluginType = PCB_IO_MGR::FindPluginTypeFromBoardPath( fullFileName, aCtl );
 
     if( pluginType == PCB_IO_MGR::FILE_TYPE_NONE )
+    {
+        progressReporter.Hide();
+        DisplayErrorMessage( this, _( "File format is not supported" ), wxEmptyString );
         return false;
+    }
 
     bool converted =  pluginType != PCB_IO_MGR::LEGACY && pluginType != PCB_IO_MGR::KICAD_SEXP;
 
@@ -676,7 +679,7 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
                 THROW_IO_ERROR( _( "File format is not supported" ) );
             }
 
-            STRING_UTF8_MAP props;
+            std::map<std::string, UTF8> props;
 
             if( m_importProperties )
                 props.insert( m_importProperties->begin(), m_importProperties->end() );
@@ -1076,10 +1079,10 @@ bool PCB_EDIT_FRAME::SavePcbFile( const wxString& aFileName, bool addToHistory,
 
     if( !Kiface().IsSingle() )
     {
-        WX_STRING_REPORTER backupReporter( &upperTxt );
+        WX_STRING_REPORTER backupReporter;
 
-        if( GetSettingsManager()->TriggerBackupIfNeeded( backupReporter ) )
-            upperTxt.clear();
+        if( !GetSettingsManager()->TriggerBackupIfNeeded( backupReporter ) )
+            upperTxt = backupReporter.GetMessages();
     }
 
     GetBoard()->SetFileName( pcbFileName.GetFullPath() );
@@ -1248,7 +1251,7 @@ bool PCB_EDIT_FRAME::doAutoSave()
 
 
 bool PCB_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType,
-                                 const STRING_UTF8_MAP* aProperties )
+                                 const std::map<std::string, UTF8>* aProperties )
 {
     m_importProperties = aProperties;
 
@@ -1301,7 +1304,7 @@ void PCB_EDIT_FRAME::GenIPC2581File( wxCommandEvent& event )
     wxString   upperTxt;
     wxString   lowerTxt;
     WX_PROGRESS_REPORTER reporter( this, _( "Generating IPC2581 file" ), 5 );
-    STRING_UTF8_MAP props;
+    std::map<std::string, UTF8> props;
 
     props["units"] = dlg.GetUnitsString();
     props["sigfig"] = dlg.GetPrecision();

@@ -1243,8 +1243,6 @@ void RENDER_3D_RAYTRACE_BASE::load3DModels( CONTAINER_3D& aDstContainer, bool aS
                     fpMatrix, SFVEC3F( modelunit_to_3d_units_factor, modelunit_to_3d_units_factor,
                                        modelunit_to_3d_units_factor ) );
 
-            BOARD_ITEM* boardItem = dynamic_cast<BOARD_ITEM*>( fp );
-
             // Get the list of model files for this model
             S3D_CACHE* cacheMgr = m_boardAdapter.Get3dCacheManager();
 
@@ -1299,7 +1297,7 @@ void RENDER_3D_RAYTRACE_BASE::load3DModels( CONTAINER_3D& aDstContainer, bool aS
                             SFVEC3F( model.m_Scale.x, model.m_Scale.y, model.m_Scale.z ) );
 
                     addModels( aDstContainer, modelPtr, modelMatrix, (float) model.m_Opacity,
-                               aSkipMaterialInformation, boardItem );
+                               aSkipMaterialInformation, fp );
                 }
             }
         }
@@ -1424,13 +1422,12 @@ void RENDER_3D_RAYTRACE_BASE::addModels( CONTAINER_3D& aDstContainer, const S3DM
     wxASSERT( a3DModel->m_Meshes != nullptr );
     wxASSERT( a3DModel->m_MaterialsSize > 0 );
     wxASSERT( a3DModel->m_MeshesSize > 0 );
-    wxASSERT( aFPOpacity > 0.0f );
-    wxASSERT( aFPOpacity <= 1.0f );
 
     if( aFPOpacity > 1.0f )
-    {
         aFPOpacity = 1.0f;
-    }
+
+    if( aFPOpacity < 0.0f )
+        aFPOpacity = 0.0f;
 
     if( ( a3DModel->m_Materials != nullptr ) && ( a3DModel->m_Meshes != nullptr )
       && ( a3DModel->m_MaterialsSize > 0 ) && ( a3DModel->m_MeshesSize > 0 ) )

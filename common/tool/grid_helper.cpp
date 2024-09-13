@@ -21,32 +21,96 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include "tool/grid_helper.h"
 
 #include <functional>
-using namespace std::placeholders;
 
+#include <advanced_config.h>
 #include <gal/graphics_abstraction_layer.h>
+#include <gal/painter.h>
 #include <math/util.h>      // for KiROUND
 #include <math/vector2d.h>
+#include <render_settings.h>
 #include <tool/tool_manager.h>
 #include <view/view.h>
-#include <tool/grid_helper.h>
 #include <settings/app_settings.h>
 
 
-GRID_HELPER::GRID_HELPER( TOOL_MANAGER* aToolMgr ) :
-    m_toolMgr( aToolMgr )
+GRID_HELPER::GRID_HELPER( TOOL_MANAGER* aToolMgr, int aConstructionLayer ) :
+        m_toolMgr( aToolMgr ), m_constructionManager( m_constructionGeomPreview )
 {
     m_maskTypes = ALL;
     m_enableSnap = true;
     m_enableSnapLine = true;
     m_enableGrid = true;
-    m_snapItem = nullptr;
+    m_snapItem = std::nullopt;
+
+    KIGFX::VIEW*            view = m_toolMgr->GetView();
+    KIGFX::RENDER_SETTINGS* settings = view->GetPainter()->GetSettings();
+
+    const KIGFX::COLOR4D constructionColour = settings->GetLayerColor( aConstructionLayer );
+    m_constructionGeomPreview.SetPersistentColor( constructionColour );
+    m_constructionGeomPreview.SetColor( constructionColour.WithAlpha( 0.7 ) );
+
+    view->Add( &m_constructionGeomPreview );
+    view->SetVisible( &m_constructionGeomPreview, false );
+
+    m_constructionManager.SetUpdateCallback(
+            [view, this]( bool aAnythingShown )
+            {
+                const bool currentlyVisible = view->IsVisible( &m_constructionGeomPreview );
+
+                if( currentlyVisible && aAnythingShown )
+                {
+                    view->Update( &m_constructionGeomPreview, KIGFX::GEOMETRY );
+                }
+                else
+                {
+                    view->SetVisible( &m_constructionGeomPreview, aAnythingShown );
+                }
+            } );
 }
 
 
 GRID_HELPER::~GRID_HELPER()
 {
+    KIGFX::VIEW& view = *m_toolMgr->GetView();
+    view.Remove( &m_constructionGeomPreview );
+
+    if( m_anchorDebug )
+        view.Remove( m_anchorDebug.get() );
+}
+
+
+KIGFX::ANCHOR_DEBUG* GRID_HELPER::enableAndGetAnchorDebug()
+{
+    static bool permitted = ADVANCED_CFG::GetCfg().m_EnableSnapAnchorsDebug;
+    if( permitted && !m_anchorDebug )
+    {
+        KIGFX::VIEW& view = *m_toolMgr->GetView();
+        m_anchorDebug = std::make_unique<KIGFX::ANCHOR_DEBUG>();
+        view.Add( m_anchorDebug.get() );
+        view.SetVisible( m_anchorDebug.get(), true );
+    }
+    return m_anchorDebug.get();
+}
+
+
+void GRID_HELPER::showConstructionGeometry( bool aShow )
+{
+    m_toolMgr->GetView()->SetVisible( &m_constructionGeomPreview, aShow );
+}
+
+
+void GRID_HELPER::updateSnapPoint( const TYPED_POINT2I& aPoint )
+{
+    m_viewSnapPoint.SetPosition( aPoint.m_point );
+    m_viewSnapPoint.SetSnapTypes( aPoint.m_types );
+
+    if( m_toolMgr->GetView()->IsVisible( &m_viewSnapPoint ) )
+        m_toolMgr->GetView()->Update( &m_viewSnapPoint, KIGFX::GEOMETRY );
+    else
+        m_toolMgr->GetView()->SetVisible( &m_viewSnapPoint, true );
 }
 
 
@@ -162,4 +226,13 @@ VECTOR2I GRID_HELPER::Align( const VECTOR2I& aPoint, const VECTOR2D& aGrid,
 bool GRID_HELPER::canUseGrid() const
 {
     return m_enableGrid && m_toolMgr->GetView()->GetGAL()->GetGridSnapping();
+}
+
+
+std::optional<VECTOR2I> GRID_HELPER::GetSnappedPoint() const
+{
+    if( m_snapItem )
+        return m_snapItem->pos;
+
+    return std::nullopt;
 }

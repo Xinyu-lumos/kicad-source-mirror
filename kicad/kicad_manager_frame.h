@@ -71,7 +71,10 @@ public:
     wxStatusBar* OnCreateStatusBar( int number, long style, wxWindowID id,
                                     const wxString& name ) override;
 
-    void RecreateBaseHToolbar();
+    /**
+     * (Re)Create the left vertical toolbar
+     */
+    void RecreateBaseLeftToolbar();
 
     wxString GetCurrentFileName() const override
     {
@@ -185,6 +188,8 @@ protected:
 
     void onToolbarSizeChanged();
 
+    void onNotebookPageCloseRequest( wxAuiNotebookEvent& evt );
+
 private:
     void setupTools();
     void setupActions();
@@ -208,6 +213,7 @@ private:
     bool m_active_project;
 
     PROJECT_TREE_PANE*    m_leftWin;
+    wxAuiNotebook*        m_notebook;
     PANEL_KICAD_LAUNCHER* m_launcher;
     ACTION_TOOLBAR*       m_mainToolBar;
     int                   m_lastToolbarIconSize;

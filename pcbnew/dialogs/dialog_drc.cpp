@@ -510,7 +510,7 @@ void DIALOG_DRC::OnDRCItemSelected( wxDataViewEvent& aEvent )
 
     WINDOW_THAWER thawer( m_frame );
 
-    if( principalLayer > UNDEFINED_LAYER && ( violationLayers & board->GetVisibleLayers() ) == 0 )
+    if( principalLayer > UNDEFINED_LAYER && ( violationLayers & board->GetVisibleLayers() ).none() )
         m_frame->GetAppearancePanel()->SetLayerVisible( principalLayer, true );
 
     if( principalLayer > UNDEFINED_LAYER && board->GetVisibleLayers().test( principalLayer ) )
@@ -1309,7 +1309,8 @@ void DIALOG_DRC::updateDisplayedCounts()
                      || ii == DRCE_DUPLICATE_FOOTPRINT
                      || ii == DRCE_EXTRA_FOOTPRINT
                      || ii == DRCE_NET_CONFLICT
-                     || ii == DRCE_SCHEMATIC_PARITY_ISSUES )
+                     || ii == DRCE_SCHEMATIC_PARITY
+                     || ii == DRCE_FOOTPRINT_FILTERS )
             {
                 if( showWarnings && bds.GetSeverity( ii ) == RPT_SEVERITY_WARNING )
                     footprintsOverflowed = true;

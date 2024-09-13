@@ -9,6 +9,7 @@ add_subdirectory( pcm )
 
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
+    ${CMAKE_SOURCE_DIR}/common/dialogs
     ${CMAKE_SOURCE_DIR}/pcbnew
     ${CMAKE_SOURCE_DIR}/eeschema
     ${CMAKE_SOURCE_DIR}/kicad/pcm

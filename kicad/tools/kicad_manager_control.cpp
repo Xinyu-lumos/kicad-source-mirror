@@ -22,6 +22,7 @@
 #include <env_vars.h>
 #include <executable_names.h>
 #include <pgm_base.h>
+#include <pgm_kicad.h>
 #include <policy_keys.h>
 #include <kiway.h>
 #include <kicad_manager_frame.h>
@@ -36,6 +37,7 @@
 #include <tool/tool_event.h>
 #include <tools/kicad_manager_actions.h>
 #include <tools/kicad_manager_control.h>
+#include <dialogs/panel_design_block_lib_table.h>
 #include <dialogs/dialog_template_selector.h>
 #include <dialogs/git/dialog_git_repository.h>
 #include <git/git_clone_handler.h>
@@ -43,6 +45,7 @@
 #include <paths.h>
 #include <wx/dir.h>
 #include <wx/filedlg.h>
+#include <design_block_lib_table.h>
 #include "dialog_pcm.h"
 
 #include "widgets/filedlg_new_project.h"
@@ -922,8 +925,9 @@ int KICAD_MANAGER_CONTROL::ShowPluginManager( const TOOL_EVENT& aEvent )
         && ( settings->m_PcmLibAutoAdd || settings->m_PcmLibAutoRemove ) )
     {
         // Reset project tables
-        Prj().SetElem( PROJECT::ELEM_SYMBOL_LIB_TABLE, nullptr );
-        Prj().SetElem( PROJECT::ELEM_FPTBL, nullptr );
+        Prj().SetElem( PROJECT::ELEM::SYMBOL_LIB_TABLE, nullptr );
+        Prj().SetElem( PROJECT::ELEM::FPTBL, nullptr );
+        Prj().SetElem( PROJECT::ELEM::DESIGN_BLOCK_LIB_TABLE, nullptr );
 
         KIWAY& kiway = m_frame->Kiway();
 

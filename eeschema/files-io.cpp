@@ -185,31 +185,32 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         CreateScreens();
     }
 
-    SCH_IO_MGR::SCH_FILE_T schFileType = SCH_IO_MGR::GuessPluginTypeFromSchPath( fullFileName, KICTL_KICAD_ONLY );
+    SCH_IO_MGR::SCH_FILE_T schFileType = SCH_IO_MGR::GuessPluginTypeFromSchPath( fullFileName,
+                                                                                 KICTL_KICAD_ONLY );
 
     if( schFileType == SCH_IO_MGR::SCH_LEGACY )
     {
         // Don't reload the symbol libraries if we are just launching Eeschema from KiCad again.
         // They are already saved in the kiface project object.
-        if( differentProject || !Prj().GetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS ) )
+        if( differentProject || !Prj().GetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS ) )
         {
             // load the libraries here, not in SCH_SCREEN::Draw() which is a context
             // that will not tolerate DisplayError() dialog since we're already in an
             // event handler in there.
             // And when a schematic file is loaded, we need these libs to initialize
             // some parameters (links to PART LIB, dangling ends ...)
-            Prj().SetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS, nullptr );
+            Prj().SetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS, nullptr );
             PROJECT_SCH::SchLibs( &Prj() );
         }
     }
     else
     {
         // No legacy symbol libraries including the cache are loaded with the new file format.
-        Prj().SetElem( PROJECT::ELEM_SCH_SYMBOL_LIBS, nullptr );
+        Prj().SetElem( PROJECT::ELEM::SCH_SYMBOL_LIBS, nullptr );
     }
 
     // Load the symbol library table, this will be used forever more.
-    Prj().SetElem( PROJECT::ELEM_SYMBOL_LIB_TABLE, nullptr );
+    Prj().SetElem( PROJECT::ELEM::SYMBOL_LIB_TABLE, nullptr );
     PROJECT_SCH::SchSymbolLibTable( &Prj() );
 
     // Load project settings after schematic has been set up with the project link, since this will
@@ -498,13 +499,14 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
             // Restore all of the loaded symbol and sheet instances from the root sheet.
             if( Schematic().RootScreen()->GetFileFormatVersionAtLoad() < 20221002 )
-                sheetList.UpdateSymbolInstanceData( Schematic().RootScreen()->GetSymbolInstances());
+                sheetList.UpdateSymbolInstanceData( Schematic().RootScreen()->GetSymbolInstances() );
 
             if( Schematic().RootScreen()->GetFileFormatVersionAtLoad() < 20221110 )
                 sheetList.UpdateSheetInstanceData( Schematic().RootScreen()->GetSheetInstances());
 
             if( Schematic().RootScreen()->GetFileFormatVersionAtLoad() < 20230221 )
-                for( SCH_SCREEN* screen = schematic.GetFirst(); screen; screen = schematic.GetNext() )
+                for( SCH_SCREEN* screen = schematic.GetFirst(); screen;
+                     screen = schematic.GetNext() )
                     screen->FixLegacyPowerSymbolMismatches();
 
             for( SCH_SCREEN* screen = schematic.GetFirst(); screen; screen = schematic.GetNext() )
@@ -524,6 +526,7 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
         schematic.PruneOrphanedSymbolInstances( Prj().GetProjectName(), sheetList );
         schematic.PruneOrphanedSheetInstances( Prj().GetProjectName(), sheetList );
+        sheetList.CheckForMissingSymbolInstances( Prj().GetProjectName() );
 
         Schematic().ConnectionGraph()->Reset();
 
@@ -608,93 +611,6 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         GetCanvas()->DisplaySheet( GetCurrentSheet().LastScreen() );
 
     return true;
-}
-
-
-bool SCH_EDIT_FRAME::AppendSchematic()
-{
-    SCH_SCREEN* screen = GetScreen();
-
-    wxCHECK( screen, false );
-
-    // open file chooser dialog
-    wxString path = wxPathOnly( Prj().GetProjectFullName() );
-
-    wxFileDialog dlg( this, _( "Insert Schematic" ), path, wxEmptyString,
-                      FILEEXT::KiCadSchematicFileWildcard(), wxFD_OPEN | wxFD_FILE_MUST_EXIST );
-
-    if( dlg.ShowModal() == wxID_CANCEL )
-        return false;
-
-    return AddSheetAndUpdateDisplay( dlg.GetPath() );
-}
-
-
-bool SCH_EDIT_FRAME::AddSheetAndUpdateDisplay( const wxString aFullFileName )
-{
-    SCH_COMMIT         commit( m_toolManager );
-    EE_SELECTION_TOOL* selectionTool = m_toolManager->GetTool<EE_SELECTION_TOOL>();
-
-    selectionTool->ClearSelection();
-
-    // Mark all existing items on the screen so we don't select them after appending
-    for( EDA_ITEM* item : GetScreen()->Items() )
-        item->SetFlags( SKIP_STRUCT );
-
-    if( !LoadSheetFromFile( GetCurrentSheet().Last(), &GetCurrentSheet(), aFullFileName ) )
-        return false;
-
-    initScreenZoom();
-    SetSheetNumberAndCount();
-
-    SyncView();
-    OnModify();
-    HardRedraw();   // Full reinit of the current screen and the display.
-    bool selected = false;
-
-    // Select all new items
-    for( EDA_ITEM* item : GetScreen()->Items() )
-    {
-        if( !item->HasFlag( SKIP_STRUCT ) )
-        {
-            commit.Added( item, GetScreen() );
-            selectionTool->AddItemToSel( item, true );
-            selected = true;
-
-            if( item->Type() == SCH_LINE_T )
-                item->SetFlags( STARTPOINT | ENDPOINT );
-        }
-        else
-            item->ClearFlags( SKIP_STRUCT );
-    }
-
-    if( selected )
-        m_toolManager->ProcessEvent( EVENTS::SelectedEvent );
-
-    // Start moving selection, cancel undoes the insertion
-    if( !m_toolManager->RunSynchronousAction( EE_ACTIONS::move, &commit ) )
-        commit.Revert();
-    else
-        commit.Push( _( "Import Schematic Sheet Content..." ) );
-
-    UpdateHierarchyNavigator();
-
-    return true;
-}
-
-
-void SCH_EDIT_FRAME::OnAppendProject( wxCommandEvent& event )
-{
-    if( GetScreen() && GetScreen()->IsModified() )
-    {
-        wxString msg = _( "This operation cannot be undone.\n\n"
-                          "Do you want to save the current document before proceeding?" );
-
-        if( IsOK( this, msg ) )
-            SaveProject();
-    }
-
-    AppendSchematic();
 }
 
 
@@ -836,6 +752,19 @@ bool SCH_EDIT_FRAME::saveSchematicFile( SCH_SHEET* aSheet, const wxString& aSave
 
     // Write through symlinks, don't replace them
     WX_FILENAME::ResolvePossibleSymlinks( schematicFileName );
+
+    if( !schematicFileName.DirExists() )
+    {
+        if( !wxMkdir( schematicFileName.GetPath() ) )
+        {
+            msg.Printf( _( "Error saving schematic file '%s'.\n%s" ),
+                        schematicFileName.GetFullPath(),
+                        "Could not create directory: %s" + schematicFileName.GetPath() );
+            DisplayError( this, msg );
+
+            return false;
+        }
+    }
 
     if( !IsWritable( schematicFileName ) )
         return false;
@@ -1291,10 +1220,10 @@ bool SCH_EDIT_FRAME::SaveProject( bool aSaveAs )
 
     if( !Kiface().IsSingle() )
     {
-        WX_STRING_REPORTER backupReporter( &msg );
+        WX_STRING_REPORTER backupReporter;
 
         if( !GetSettingsManager()->TriggerBackupIfNeeded( backupReporter ) )
-            SetStatusText( msg, 0 );
+            SetStatusText( backupReporter.GetMessages(), 0 );
     }
 
     updateTitle();
@@ -1373,7 +1302,7 @@ bool SCH_EDIT_FRAME::doAutoSave()
 
 
 bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType,
-                                 const STRING_UTF8_MAP* aProperties )
+                                 const std::map<std::string, UTF8>* aProperties )
 {
     wxFileName             filename( aFileName );
     wxFileName             newfilename;

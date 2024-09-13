@@ -27,6 +27,7 @@
 /**
  * @file project.h
  */
+#include <array>
 #include <map>
 #include <vector>
 #include <kiid.h>
@@ -41,6 +42,7 @@
 /// default name for nameless projects
 #define NAMELESS_PROJECT _( "untitled" )
 
+class DESIGN_BLOCK_LIB_TABLE;
 class FP_LIB_TABLE;
 class SYMBOL_LIBS;
 class SEARCH_STACK;
@@ -62,6 +64,24 @@ class KICOMMON_API PROJECT
 {
 public:
     /**
+     * The set of #_ELEMs that a #PROJECT can hold.
+     */
+    enum class ELEM
+    {
+        FPTBL,
+
+        SCH_SYMBOL_LIBS,
+        SCH_SEARCH_STACK,
+        S3DCACHE,
+        SYMBOL_LIB_TABLE,
+        SEARCH_STACK,
+
+        DESIGN_BLOCK_LIB_TABLE,
+
+        COUNT
+    };
+
+    /**
      * A #PROJECT can hold stuff it knows nothing about, in the form of _ELEM derivatives.
      *
      * Derive #PROJECT elements from this, it has a virtual destructor, and Elem*() functions
@@ -74,7 +94,7 @@ public:
     public:
         virtual ~_ELEM() {}
 
-        virtual KICAD_T Type() = 0;     // Sanity-checking for returned values.
+        virtual PROJECT::ELEM ProjectElementType() = 0; // Sanity-checking for returned values.
     };
 
     PROJECT();
@@ -160,8 +180,22 @@ public:
      */
     virtual const wxString SymbolLibTableName() const;
 
-    void PinLibrary( const wxString& aLibrary, bool isSymbolLibrary );
-    void UnpinLibrary( const wxString& aLibrary, bool isSymbolLibrary );
+    /**
+     * Return the path and file name of this projects design block library table.
+     */
+    virtual const wxString DesignBlockLibTblName() const;
+
+    enum LIB_TYPE_T
+    {
+        SYMBOL_LIB,
+        FOOTPRINT_LIB,
+        DESIGN_BLOCK_LIB,
+
+        LIB_TYPE_COUNT
+    };
+
+    void PinLibrary( const wxString& aLibrary, enum LIB_TYPE_T aLibType );
+    void UnpinLibrary( const wxString& aLibrary, enum LIB_TYPE_T aLibType );
 
     virtual PROJECT_FILE& GetProjectFile() const
     {
@@ -216,21 +250,6 @@ public:
     virtual void SetRString( RSTRING_T aStringId, const wxString& aString );
 
     /**
-     * The set of #_ELEMs that a #PROJECT can hold.
-     */
-    enum ELEM_T
-    {
-        ELEM_FPTBL,
-
-        ELEM_SCH_SYMBOL_LIBS,
-        ELEM_SCH_SEARCH_STACK,
-        ELEM_3DCACHE,
-        ELEM_SYMBOL_LIB_TABLE,
-
-        ELEM_COUNT
-    };
-
-    /**
      * Get and set the elements for this project.
      *
      * This is a cross module API, therefore the #_ELEM destructor is virtual and
@@ -242,8 +261,8 @@ public:
      *  -#) #PROJECT knows nothing about #_ELEM objects except how to delete them and
      *      set and get pointers to them.
      */
-    virtual  _ELEM*  GetElem( ELEM_T aIndex );
-    virtual  void    SetElem( ELEM_T aIndex, _ELEM* aElem );
+    virtual _ELEM* GetElem( PROJECT::ELEM aIndex );
+    virtual void   SetElem( PROJECT::ELEM aIndex, _ELEM* aElem );
 
     /**
      * Delete all the _ELEMs and set their pointers to NULL.
@@ -274,6 +293,11 @@ public:
      * from Pcbnew.
      */
     virtual FP_LIB_TABLE* PcbFootprintLibs( KIWAY& aKiway );
+
+    /**
+     * Return the table of design block libraries.
+     */
+    virtual DESIGN_BLOCK_LIB_TABLE* DesignBlockLibs();
 
 private:
     friend class SETTINGS_MANAGER; // so that SM can set project path
@@ -334,10 +358,10 @@ private:
     std::map<KIID, wxString> m_sheetNames;
 
     /// @see this::SetRString(), GetRString(), and enum RSTRING_T.
-    wxString                 m_rstrings[RSTRING_COUNT];
+    std::array<wxString,RSTRING_COUNT> m_rstrings;
 
     /// @see this::Elem() and enum ELEM_T.
-    _ELEM*                   m_elems[ELEM_COUNT];
+    std::array<_ELEM*,static_cast<unsigned int>( PROJECT::ELEM::COUNT )> m_elems;
 };
 
 

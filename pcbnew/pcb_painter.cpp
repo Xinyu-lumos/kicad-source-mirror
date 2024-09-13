@@ -87,18 +87,18 @@ PCB_VIEWERS_SETTINGS_BASE* PCB_PAINTER::viewer_settings()
     case FRAME_PCB_EDITOR:
     case FRAME_PCB_DISPLAY3D:
     default:
-        return Pgm().GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>();
+        return Pgm().GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" );
 
     case FRAME_FOOTPRINT_EDITOR:
     case FRAME_FOOTPRINT_WIZARD:
-        return Pgm().GetSettingsManager().GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>();
+        return Pgm().GetSettingsManager().GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" );
 
     case FRAME_FOOTPRINT_VIEWER:
     case FRAME_FOOTPRINT_CHOOSER:
     case FRAME_FOOTPRINT_PREVIEW:
     case FRAME_CVPCB:
     case FRAME_CVPCB_DISPLAY:
-        return Pgm().GetSettingsManager().GetAppSettings<CVPCB_SETTINGS>();
+        return Pgm().GetSettingsManager().GetAppSettings<CVPCB_SETTINGS>( "cvpcb" );
     }
 }
 
@@ -150,19 +150,19 @@ void PCB_RENDER_SETTINGS::LoadColors( const COLOR_SETTINGS* aSettings )
 
     // Colors for layers that aren't theme-able
     m_layerColors[LAYER_PAD_PLATEDHOLES] = aSettings->GetColor( LAYER_PCB_BACKGROUND );
-    m_layerColors[LAYER_VIA_NETNAMES]    = COLOR4D( 0.2, 0.2, 0.2, 0.9 );
-    m_layerColors[LAYER_PAD_NETNAMES]    = COLOR4D( 1.0, 1.0, 1.0, 0.9 );
+    m_layerColors[LAYER_VIA_NETNAMES]    = aSettings->GetColor( LAYER_VIA_NETNAMES );
+    m_layerColors[LAYER_PAD_NETNAMES]    = aSettings->GetColor( LAYER_PAD_NETNAMES );
     m_layerColors[LAYER_PADS_SMD_FR]     = aSettings->GetColor( F_Cu );
     m_layerColors[LAYER_PADS_SMD_BK]     = aSettings->GetColor( B_Cu );
-    m_layerColors[LAYER_PAD_FR_NETNAMES] = COLOR4D( 1.0, 1.0, 1.0, 0.9 );
-    m_layerColors[LAYER_PAD_BK_NETNAMES] = COLOR4D( 1.0, 1.0, 1.0, 0.9 );
+    m_layerColors[LAYER_PAD_FR_NETNAMES] = aSettings->GetColor( LAYER_PAD_NETNAMES );
+    m_layerColors[LAYER_PAD_BK_NETNAMES] = aSettings->GetColor( LAYER_PAD_NETNAMES );
 
     // Netnames for copper layers
+    const COLOR4D lightLabel = aSettings->GetColor( NETNAMES_LAYER_ID_START );
+    const COLOR4D darkLabel = lightLabel.Inverted();
+
     for( PCB_LAYER_ID layer : LSET::AllCuMask().CuStack() )
     {
-        const COLOR4D lightLabel( 1.0, 1.0, 1.0, 0.7 );
-        const COLOR4D darkLabel = lightLabel.Inverted();
-
         if( m_layerColors[layer].GetBrightness() > 0.5 )
             m_layerColors[GetNetnameLayer( layer )] = darkLabel;
         else
@@ -413,17 +413,16 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
         {
             const PCB_VIA* via = static_cast<const PCB_VIA*>( aItem );
 
-            if( via->GetViaType() == VIATYPE::BLIND_BURIED
-                    || via->GetViaType() == VIATYPE::MICROVIA )
+            if( via->GetViaType() == VIATYPE::THROUGH )
             {
-                // A blind or micro via's hole is active if it crosses the primary layer
-                if( via->GetLayerSet().test( primary ) == 0 )
+                // A through via's hole is active if any physical layer is active
+                if( LSET::PhysicalLayersMask().test( primary ) == 0 )
                     isActive = false;
             }
             else
             {
-                // A through via's hole is active if any physical layer is active
-                if( LSET::PhysicalLayersMask().test( primary ) == 0 )
+                // A blind/buried or micro via's hole is active if it crosses the primary layer
+                if( via->GetLayerSet().test( primary ) == 0 )
                     isActive = false;
             }
 
@@ -545,10 +544,10 @@ int PCB_PAINTER::getViaDrillSize( const PCB_VIA* aVia ) const
 
 bool PCB_PAINTER::Draw( const VIEW_ITEM* aItem, int aLayer )
 {
-    const BOARD_ITEM* item = dynamic_cast<const BOARD_ITEM*>( aItem );
-
-    if( !item )
+    if( !aItem->IsBOARD_ITEM() )
         return false;
+
+    const BOARD_ITEM* item = static_cast<const BOARD_ITEM*>( aItem );
 
     if( const BOARD* board = item->GetBoard() )
     {

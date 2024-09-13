@@ -37,6 +37,7 @@
 #include <tools/ee_actions.h>
 #include <tools/sch_editor_control.h>
 #include <advanced_config.h>
+#include <widgets/design_block_pane.h>
 #include <wx/log.h>
 
 SCH_ITEM* SCH_EDITOR_CONTROL::FindSymbolAndItem( const wxString* aPath, const wxString* aReference,
@@ -966,7 +967,7 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
             importFormat = -1;
         }
 
-        STRING_UTF8_MAP props;
+        std::map<std::string, UTF8> props;
 
         do
         {
@@ -998,6 +999,7 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         break;
 
     case MAIL_RELOAD_LIB:
+        m_designBlocksPane->RefreshLibs();
         SyncView();
         break;
 

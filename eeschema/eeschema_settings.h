@@ -35,6 +35,7 @@ using KIGFX::COLOR4D;
 extern const wxAuiPaneInfo& defaultNetNavigatorPaneInfo();
 extern const wxAuiPaneInfo& defaultPropertiesPaneInfo( wxWindow* aWindow );
 extern const wxAuiPaneInfo& defaultSchSelectionFilterPaneInfo( wxWindow* aWindow );
+extern const wxAuiPaneInfo& defaultDesignBlocksPaneInfo( wxWindow* aWindow );
 
 
 
@@ -101,6 +102,10 @@ public:
         int  properties_panel_width;
         float properties_splitter;
         bool show_properties;
+        bool design_blocks_show;
+        int  design_blocks_panel_docked_width;
+        int  design_blocks_panel_float_width;
+        int  design_blocks_panel_float_height;
     };
 
     struct AUTOPLACE_FIELDS
@@ -178,6 +183,9 @@ public:
         int  highlight_thickness;
         bool draw_selected_children;
         bool fill_shapes;
+        bool highlight_netclass_colors;
+        int    highlight_netclass_colors_thickness;
+        double highlight_netclass_colors_alpha;
     };
 
     struct PAGE_SETTINGS
@@ -264,6 +272,18 @@ public:
         int  sort_mode;
         bool keep_symbol;
         bool place_all_units;
+    };
+
+    struct PANEL_DESIGN_BLOCK_CHOOSER
+    {
+        int  sash_pos_h;
+        int  sash_pos_v;
+        int  width;
+        int  height;
+        int  sort_mode;
+        bool repeated_placement;
+        bool place_as_sheet;
+        bool keep_annotations;
     };
 
     struct DIALOG_IMPORT_GRAPHICS
@@ -355,6 +375,8 @@ public:
     PANEL_PLOT m_PlotPanel;
 
     PANEL_SYM_CHOOSER m_SymChooserPanel;
+
+    PANEL_DESIGN_BLOCK_CHOOSER m_DesignBlockChooserPanel;
 
     DIALOG_IMPORT_GRAPHICS m_ImportGraphics;
 

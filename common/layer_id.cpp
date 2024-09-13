@@ -102,6 +102,10 @@ wxString LayerName( int aLayer )
     case PCB_LAYER_ID::User_7:            return wxT( "User.7" );
     case PCB_LAYER_ID::User_8:            return wxT( "User.8" );
     case PCB_LAYER_ID::User_9:            return wxT( "User.9" );
+    case 57:            return wxT( "User.10" );
+    case 59:            return wxT( "User.11" );
+    case 61:            return wxT( "User.12" );
+    case 63:            return wxT( "User.13" );
 
     // Rescue
     case PCB_LAYER_ID::Rescue:            return _( "Rescue" );
@@ -151,6 +155,7 @@ wxString LayerName( int aLayer )
     case LAYER_BRIGHTENED:              return _( "Highlighted items" );
     case LAYER_HIDDEN:                  return _( "Hidden items" );
     case LAYER_SELECTION_SHADOWS:       return _( "Selection highlight" );
+    case LAYER_NET_COLOR_HIGHLIGHT:     return _( "Net color highlight" );
     case LAYER_SCHEMATIC_DRAWINGSHEET:  return _( "Drawing sheet" );
     case LAYER_SCHEMATIC_PAGE_LIMITS:   return _( "Page limits" );
     case LAYER_OP_VOLTAGES:             return _( "Operating point voltages" );
@@ -192,6 +197,9 @@ wxString LayerName( int aLayer )
     case LAYER_SELECT_OVERLAY:          return _( "Selection highlight" );
     case LAYER_LOCKED_ITEM_SHADOW:      return _( "Locked item shadow" );
     case LAYER_CONFLICTS_SHADOW:        return _( "Courtyard collision shadow" );
+    case NETNAMES_LAYER_ID_START:       return _( "Track net names" );
+    case LAYER_PAD_NETNAMES:            return _( "Pad net names" );
+    case LAYER_VIA_NETNAMES:            return _( "Via net names" );
 
     default:
         wxCHECK_MSG( false, wxEmptyString, wxString::Format( "Unknown layer ID %d", aLayer ) );

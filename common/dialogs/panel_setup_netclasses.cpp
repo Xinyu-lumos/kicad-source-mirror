@@ -325,6 +325,7 @@ void PANEL_SETUP_NETCLASSES::loadNetclasses()
 
                 if( nc->IsDefault() )
                 {
+                    m_netclassGrid->SetReadOnly( aRow, GRID_NAME );
                     m_netclassGrid->SetReadOnly( aRow, GRID_PCB_COLOR );
                     m_netclassGrid->SetReadOnly( aRow, GRID_SCHEMATIC_COLOR );
                 }
@@ -357,11 +358,6 @@ void PANEL_SETUP_NETCLASSES::loadNetclasses()
     // Enter the Default netclass.
     m_netclassGrid->AppendRows( 1 );
     netclassToGridRow( row, m_netSettings->GetDefaultNetclass().get() );
-
-    // Make the Default netclass name read-only
-    wxGridCellAttr* cellAttr = m_netclassGrid->GetOrCreateCellAttr( 0, GRID_NAME );
-    cellAttr->SetReadOnly();
-    cellAttr->DecRef();
 
     m_assignmentGrid->ClearRows();
     m_assignmentGrid->AppendRows( m_netSettings->GetNetclassPatternAssignments().size() );
@@ -803,7 +799,7 @@ void PANEL_SETUP_NETCLASSES::OnImportColorsClick( wxCommandEvent& event )
     const std::map<wxString, std::shared_ptr<NETCLASS>>& netclasses =
             m_netSettings->GetNetclasses();
 
-    for( int row = 1; row < m_netclassGrid->GetNumberRows(); ++row )
+    for( int row = 0; row < m_netclassGrid->GetNumberRows() - 1; ++row )
     {
         wxString netclassName = m_netclassGrid->GetCellValue( row, GRID_NAME );
 

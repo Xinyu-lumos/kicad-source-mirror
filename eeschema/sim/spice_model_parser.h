@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2022 Mikolaj Wielgus
- * Copyright (C) 2022 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2022-2024 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,8 +34,8 @@ class SIM_LIBRARY_SPICE;
 class SPICE_MODEL_PARSER
 {
 public:
-    static SIM_MODEL::TYPE ReadType( const SIM_LIBRARY_SPICE& aLibrary,
-                                     const std::string& aSpiceCode );
+    static bool ReadType( const SIM_LIBRARY_SPICE& aLibrary, const std::string& aSpiceCode,
+                          SIM_MODEL::TYPE* aType, bool aFirstPass );
 
     SPICE_MODEL_PARSER( SIM_MODEL_SPICE& aModel ) : m_model( aModel ) {}
     virtual ~SPICE_MODEL_PARSER() = default;

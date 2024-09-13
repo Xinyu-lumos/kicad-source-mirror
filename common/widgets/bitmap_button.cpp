@@ -73,7 +73,7 @@ BITMAP_BUTTON::BITMAP_BUTTON( wxWindow* aParent, wxWindowID aId, const wxBitmap&
 
 
 void BITMAP_BUTTON::setupEvents()
-{
+{    
     Bind( wxEVT_DPI_CHANGED,  &BITMAP_BUTTON::OnDPIChanged,     this );
     Bind( wxEVT_PAINT,        &BITMAP_BUTTON::OnPaint,          this );
     Bind( wxEVT_LEFT_UP,      &BITMAP_BUTTON::OnLeftButtonUp,   this );
@@ -87,6 +87,14 @@ void BITMAP_BUTTON::setupEvents()
 
 BITMAP_BUTTON::~BITMAP_BUTTON()
 {
+    Unbind( wxEVT_DPI_CHANGED, &BITMAP_BUTTON::OnDPIChanged, this );
+    Unbind( wxEVT_PAINT, &BITMAP_BUTTON::OnPaint, this );
+    Unbind( wxEVT_LEFT_UP, &BITMAP_BUTTON::OnLeftButtonUp, this );
+    Unbind( wxEVT_LEFT_DOWN, &BITMAP_BUTTON::OnLeftButtonDown, this );
+    Unbind( wxEVT_LEAVE_WINDOW, &BITMAP_BUTTON::OnMouseLeave, this );
+    Unbind( wxEVT_ENTER_WINDOW, &BITMAP_BUTTON::OnMouseEnter, this );
+    Unbind( wxEVT_KILL_FOCUS, &BITMAP_BUTTON::OnKillFocus, this );
+    Unbind( wxEVT_SET_FOCUS, &BITMAP_BUTTON::OnSetFocus, this );
 }
 
 

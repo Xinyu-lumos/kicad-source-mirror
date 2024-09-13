@@ -59,9 +59,11 @@ namespace SIM_MODEL_SPICE_PARSER
 }
 
 
-SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary,
-                                              const std::string& aSpiceCode )
+bool SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary, const std::string& aSpiceCode,
+                                   SIM_MODEL::TYPE* aType, bool aFirstPass )
 {
+    *aType = SIM_MODEL::TYPE::NONE;
+
     tao::pegtl::string_input<> in( aSpiceCode, "Spice_Code" );
     std::unique_ptr<tao::pegtl::parse_tree::node> root;
 
@@ -76,13 +78,18 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary,
     catch( const tao::pegtl::parse_error& e )
     {
         wxLogTrace( traceSpiceModelParser, wxS( "%s" ), e.what() );
-        return SIM_MODEL::TYPE::NONE;
+        return true;
     }
 
     for( const auto& node : root->children )
     {
         if( node->is_type<SIM_MODEL_SPICE_PARSER::dotModelAko>() )
         {
+            // The first pass of model loading is done in parallel, so we can't (yet) look
+            // up our reference model.
+            if( aFirstPass )
+                return false;
+
             std::string modelName = node->children.at( 0 )->string();
             std::string akoName = node->children.at( 1 )->string();
             const SIM_MODEL* sourceModel = aLibrary.FindModel( akoName );
@@ -95,7 +102,8 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary,
                         modelName ) );
             }
 
-            return sourceModel->GetType();
+            *aType = sourceModel->GetType();
+            return true;
         }
         else if( node->is_type<SIM_MODEL_SPICE_PARSER::dotModel>() )
         {
@@ -116,7 +124,10 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary,
                     SIM_MODEL::TYPE type = ReadTypeFromSpiceStrings( typeString );
 
                     if( type != SIM_MODEL::TYPE::RAWSPICE )
-                        return type;
+                    {
+                        *aType = type;
+                        return true;
+                    }
                 }
                 else if( subnode->is_type<SIM_MODEL_SPICE_PARSER::param>() )
                 {
@@ -134,7 +145,7 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary,
                 else
                 {
                     wxFAIL_MSG( "Unhandled parse tree subnode" );
-                    return SIM_MODEL::TYPE::NONE;
+                    return true;
                 }
             }
 
@@ -142,21 +153,28 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadType( const SIM_LIBRARY_SPICE& aLibrary,
             // `version` variables into account too. This is suboptimal since we read the model
             // twice this way, and moreover the code is now somewhat duplicated.
 
-            return ReadTypeFromSpiceStrings( typeString, level, version, false );
+            *aType = ReadTypeFromSpiceStrings( typeString, level, version, false );
+            return true;
         }
         else if( node->is_type<SIM_MODEL_SPICE_PARSER::dotSubckt>() )
         {
-            return SIM_MODEL::TYPE::SUBCKT;
+            // The first pass of model loading is done in parallel, so we can't (yet) refer to
+            // any other models in a subcircuit.
+            if( aFirstPass )
+                return false;
+
+            *aType = SIM_MODEL::TYPE::SUBCKT;
+            return true;
         }
         else
         {
             wxFAIL_MSG( "Unhandled parse tree node" );
-            return SIM_MODEL::TYPE::NONE;
+            return true;
         }
     }
 
     wxFAIL_MSG( "Could not derive type from SPICE code" );
-    return SIM_MODEL::TYPE::NONE;
+    return true;
 }
 
 
@@ -292,9 +310,6 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadTypeFromSpiceStrings( const std::string&
     for( SIM_MODEL::TYPE candidate : SIM_MODEL::TYPE_ITERATOR() )
     {
         wxString candidate_type = SIM_MODEL::SpiceInfo( candidate ).modelType;
-        wxString candidate_level = SIM_MODEL::SpiceInfo( candidate ).level;
-        wxString candidate_version = SIM_MODEL::SpiceInfo( candidate ).version;
-        bool     candidate_isDefaultLevel = SIM_MODEL::SpiceInfo( candidate ).isDefaultLevel;
 
         if( candidate_type.IsEmpty() )
             continue;
@@ -308,16 +323,16 @@ SIM_MODEL::TYPE SPICE_MODEL_PARSER::ReadTypeFromSpiceStrings( const std::string&
         }
         else if( input_type.StartsWith( candidate_type ) )
         {
-            if( candidate_version != aVersion )
+            if( SIM_MODEL::SpiceInfo( candidate ).version != aVersion )
                 continue;
 
-            if( candidate_level == input_level )
+            if( SIM_MODEL::SpiceInfo( candidate ).level == input_level )
                 return candidate;
 
             if( aSkipDefaultLevel )
                 continue;
 
-            if( candidate_isDefaultLevel && aLevel == "" )
+            if( SIM_MODEL::SpiceInfo( candidate ).isDefaultLevel && aLevel == "" )
                 return candidate;
         }
     }

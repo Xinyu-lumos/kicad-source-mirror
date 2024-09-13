@@ -14,6 +14,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/resources/bitmaps_png
     ${CMAKE_SOURCE_DIR}/3d-viewer
     ${CMAKE_SOURCE_DIR}/pcbnew
+    ${CMAKE_SOURCE_DIR}/kicad
     ${INC_AFTER}
     )
 
@@ -106,12 +107,21 @@ set( KICOMMON_SRCS
     dialogs/dialog_migrate_settings_base.cpp
 
     widgets/bitmap_button.cpp
+    widgets/html_window.cpp
     widgets/kistatusbar.cpp
+    widgets/number_badge.cpp
     widgets/progress_reporter_base.cpp
     widgets/std_bitmap_button.cpp
     widgets/ui_common.cpp
+    widgets/wx_html_report_panel.cpp
+    widgets/wx_html_report_panel_base.cpp
 
     database/database_lib_settings.cpp
+
+    design_block_lib_table.cpp
+    design_block_io.cpp
+    design_block_info.cpp
+    design_block_info_impl.cpp
 
     advanced_config.cpp
     asset_archive.cpp
@@ -126,6 +136,8 @@ set( KICOMMON_SRCS
     config_params.cpp
     confirm.cpp
     dialog_shim.cpp
+    dpi_scaling.cpp
+    dpi_scaling_common.cpp
     dsnlexer.cpp
     eda_pattern_match.cpp
     eda_units.cpp
@@ -151,6 +163,7 @@ set( KICOMMON_SRCS
     page_info.cpp
     paths.cpp
     project.cpp
+    reporter.cpp
     richio.cpp
     search_stack.cpp
     searchhelpfilefullpath.cpp
@@ -166,6 +179,8 @@ set( KICOMMON_SRCS
     ../scripting/python_scripting.cpp
 
     io/kicad/kicad_io_utils.cpp    # needed by richio
+    io/io_base.cpp
+    io/io_utils.cpp
     )
 
 if( KICAD_IPC_API )
@@ -265,6 +280,7 @@ target_include_directories( kicommon
     PUBLIC
         .
         ${CMAKE_BINARY_DIR}
+        $<TARGET_PROPERTY:dynamic_bitset,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:magic_enum,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:pegtl,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:expected,INTERFACE_INCLUDE_DIRECTORIES>
@@ -310,6 +326,7 @@ set( COMMON_DLG_SRCS
     dialogs/dialog_embed_files.cpp
     dialogs/dialog_global_lib_table_config.cpp
     dialogs/dialog_global_lib_table_config_base.cpp
+    dialogs/dialog_global_design_block_lib_table_config.cpp
     dialogs/dialog_grid_settings.cpp
     dialogs/dialog_grid_settings_base.cpp
     dialogs/dialog_hotkey_list.cpp
@@ -342,6 +359,8 @@ set( COMMON_DLG_SRCS
     dialogs/panel_color_settings.cpp
     dialogs/panel_common_settings.cpp
     dialogs/panel_common_settings_base.cpp
+    dialogs/panel_design_block_lib_table_base.cpp
+    dialogs/panel_design_block_lib_table.cpp
     dialogs/panel_embedded_files.cpp
     dialogs/panel_embedded_files_base.cpp
     dialogs/panel_gal_display_options.cpp
@@ -388,14 +407,13 @@ set( COMMON_WIDGET_SRCS
     widgets/grid_icon_text_helpers.cpp
     widgets/grid_text_button_helpers.cpp
     widgets/grid_text_helpers.cpp
-    widgets/html_window.cpp
     widgets/indicator_icon.cpp
     widgets/wx_infobar.cpp
     widgets/layer_box_selector.cpp
+    widgets/layer_presentation.cpp
     widgets/lib_tree.cpp
     widgets/mathplot.cpp
     widgets/msgpanel.cpp
-    widgets/number_badge.cpp
     widgets/paged_dialog.cpp
     widgets/properties_panel.cpp
     widgets/search_pane.cpp
@@ -415,9 +433,8 @@ set( COMMON_WIDGET_SRCS
     widgets/wx_dataviewctrl.cpp
     widgets/wx_ellipsized_static_text.cpp
     widgets/wx_grid.cpp
+    widgets/wx_grid_autosizer.cpp
     widgets/wx_html_report_box.cpp
-    widgets/wx_html_report_panel.cpp
-    widgets/wx_html_report_panel_base.cpp
     widgets/wx_listbox.cpp
     widgets/wx_panel.cpp
     widgets/wx_progress_reporters.cpp
@@ -437,16 +454,20 @@ set( COMMON_DRAWING_SHEET_SRCS
     )
 
 set( COMMON_PREVIEW_ITEMS_SRCS
+    preview_items/anchor_debug.cpp
     preview_items/arc_assistant.cpp
     preview_items/arc_geom_manager.cpp
     preview_items/centreline_rect_item.cpp
+    preview_items/construction_geom.cpp
     preview_items/draw_context.cpp
+    preview_items/item_drawing_utils.cpp
     preview_items/polygon_geom_manager.cpp
     preview_items/polygon_item.cpp
     preview_items/preview_utils.cpp
     preview_items/ruler_item.cpp
     preview_items/selection_area.cpp
     preview_items/simple_overlay_item.cpp
+    preview_items/snap_indicator.cpp
     preview_items/two_point_assistant.cpp
     )
 
@@ -462,8 +483,6 @@ set( PLOTTERS_CONTROL_SRCS
     )
 
 set( COMMON_IO_SRCS
-    io/io_base.cpp
-    io/io_utils.cpp
 
     # Altium
     io/altium/altium_binary_parser.cpp
@@ -528,7 +547,6 @@ set( COMMON_SRCS
     board_printout.cpp
     cli_progress_reporter.cpp
     commit.cpp
-    dpi_scaling_common.cpp
     draw_panel_gal.cpp
     gal_display_options_common.cpp
     gr_text.cpp
@@ -565,10 +583,8 @@ set( COMMON_SRCS
     rc_item.cpp
     refdes_utils.cpp
     render_settings.cpp
-    reporter.cpp
     scintilla_tricks.cpp
     status_popup.cpp
-    string_utf8_map.cpp
     stroke_params.cpp
     template_fieldnames.cpp
     textentry_tricks.cpp
@@ -590,7 +606,7 @@ set( COMMON_SRCS
     tool/action_toolbar.cpp
     tool/actions.cpp
     tool/common_control.cpp
-    tool/library_editor_control.cpp
+    tool/construction_manager.cpp
     tool/common_tools.cpp
     tool/conditional_menu.cpp
     tool/edit_constraints.cpp
@@ -599,6 +615,7 @@ set( COMMON_SRCS
     tool/embed_tool.cpp
     tool/grid_helper.cpp
     tool/grid_menu.cpp
+    tool/library_editor_control.cpp
     tool/picker_tool.cpp
     tool/properties_tool.cpp
     tool/selection.cpp

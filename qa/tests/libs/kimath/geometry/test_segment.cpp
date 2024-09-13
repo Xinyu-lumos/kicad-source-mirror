@@ -103,6 +103,9 @@ bool SegDistanceCorrect( const SEG& aSegA, const SEG& aSegB, int aExp )
  */
 bool SegVecDistanceCorrect( const SEG& aSeg, const VECTOR2I& aVec, int aExp )
 {
+    const SEG::ecoord squaredDistance = aSeg.SquaredDistance( aVec );
+    BOOST_REQUIRE( squaredDistance >= 0 );
+
     const int dist = aSeg.Distance( aVec );
 
     bool ok = ( dist == aExp );
@@ -341,6 +344,24 @@ static const std::vector<SEG_VECTOR_DISTANCE_CASE> seg_vec_dist_cases = {
         { { 0, 0 }, { 1000, 0 } },
         { 1000 + 200, 200 },
         282, // sqrt(200^2 + 200^2) = 282.8, rounded to nearest
+    },
+    {
+        "Issue 18473 (inside hit with rounding error)",
+        { { 187360000, 42510000 }, { 105796472, 42510000 } },
+        { 106645000, 42510000 },
+          0,
+    },
+    {
+        "Straight line x distance",
+        { { 187360000, 42510000 }, { 105796472, 42510000 } },
+          { 197360000, 42510000 },
+             10000000,
+    },
+    {
+        "Straight line -x distance",
+        { { 187360000, 42510000 }, { 105796472, 42510000 } },
+          { 104796472, 42510000 },
+              1000000,
     },
 };
 // clang-format on
@@ -693,6 +714,22 @@ BOOST_AUTO_TEST_CASE( SegCreatePerpendicular )
             BOOST_CHECK_PREDICATE( SegVecDistanceCorrect, ( perpendicular )( c.m_vec )( 0 ) );
         }
     }
+}
+
+BOOST_AUTO_TEST_CASE( LineDistance )
+{
+    SEG seg( { 0, 0 }, { 10, 0 } );
+
+    BOOST_TEST( seg.LineDistance( { 5, 0 } ) == 0 );
+    BOOST_TEST( seg.LineDistance( { 5, 8 } ) == 8 );
+}
+
+BOOST_AUTO_TEST_CASE( LineDistanceSided )
+{
+    SEG seg( { 0, 0 }, { 10, 0 } );
+
+    BOOST_TEST( seg.LineDistance( { 5, 8 }, true ) == 8 );
+    BOOST_TEST( seg.LineDistance( { 5, -8 }, true ) == -8 );
 }
 
 BOOST_AUTO_TEST_SUITE_END()

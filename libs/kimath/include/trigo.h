@@ -63,20 +63,46 @@ bool SegmentIntersectsSegment( const VECTOR2I& a_p1_l1, const VECTOR2I& a_p2_l1,
  */
 void RotatePoint( int *pX, int *pY, const EDA_ANGLE& aAngle );
 
+/**
+ * Rotate a VECTOR2I in place by aAngle.
+ */
 inline void RotatePoint( VECTOR2I& point, const EDA_ANGLE& aAngle )
 {
     RotatePoint( &point.x, &point.y, aAngle );
 }
 
+/**
+ * Return a new VECTOR2I that is the result of rotating aVector by aAngle.
+ */
+inline VECTOR2I GetRotated( const VECTOR2I& aVector, const EDA_ANGLE& aAngle )
+{
+    VECTOR2I result = aVector;
+    RotatePoint( &result.x, &result.y, aAngle );
+    return result;
+}
 
 /**
  * Calculate the new point of coord coord pX, pY, for a rotation center cx, cy.
  */
 void RotatePoint( int *pX, int *pY, int cx, int cy, const EDA_ANGLE& aAngle );
 
-inline void RotatePoint( VECTOR2I& point, const VECTOR2I& centre, const EDA_ANGLE& aAngle )
+/**
+ * Rotate a VECTOR2I in place by aAngle about aCentre
+ */
+inline void RotatePoint( VECTOR2I& aPoint, const VECTOR2I& aCentre, const EDA_ANGLE& aAngle )
 {
-    RotatePoint( &point.x, &point.y, centre.x, centre.y, aAngle );
+    RotatePoint( &aPoint.x, &aPoint.y, aCentre.x, aCentre.y, aAngle );
+}
+
+/**
+ * Return a new VECTOR2I that is the result of rotating aVector by aAngle.
+ */
+inline VECTOR2I GetRotated( const VECTOR2I& aVector, const VECTOR2I& aCentre,
+                            const EDA_ANGLE& aAngle )
+{
+    VECTOR2I result = aVector;
+    RotatePoint( &result.x, &result.y, aCentre.x, aCentre.y, aAngle );
+    return result;
 }
 
 
@@ -213,31 +239,5 @@ inline bool InterceptsNegativeX( double aStartAngle, double aEndAngle )
 
     return aStartAngle < 180.0 && end > 180.0;
 }
-
-/**
- * Calculate the area of a parallelogram defined by \a aPointA, \a aPointB, and \a aPointC.
- *                     B ______________________
- *                      /                      /
- *                     /                      /
- *                    /______________________/
- *                   A                       C
- * The area of a parallelogram is the cross product of the vectors A->B and A->C.
- * The order of the vertices is not important, the result will be the same (modulo sign).
- */
-template <class T>
-inline typename VECTOR2<T>::extended_type
-ParallelogramArea( const VECTOR2<T>& aPointA, const VECTOR2<T>& aPointB, const VECTOR2<T>& aPointC )
-{
-    VECTOR2<T> v1 = aPointB - aPointA;
-    VECTOR2<T> v2 = aPointC - aPointA;
-    return v1.Cross( v2 );
-}
-
-/**
- * Test if a point hits a line segment within a given distance.  This is a faster version of
- * TestSegmentHit() that does not calculate the distance.
-*/
-bool TestSegmentHitFast( const VECTOR2I& aRefPoint, const VECTOR2I& aStart, const VECTOR2I& aEnd,
-                         int aDist );
 
 #endif

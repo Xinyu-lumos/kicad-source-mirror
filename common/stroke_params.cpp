@@ -170,6 +170,8 @@ void STROKE_PARAMS::Stroke( const SHAPE* aShape, LINE_STYLE aLineStyle, int aWid
 
         wxASSERT( startAngle < arcEndAngle );
 
+        EDA_ANGLE angleIncrementInRadians = EDA_ANGLE( M_PI / ANGLE_360 );
+
         for( size_t i = 0; i < 10000 && startAngle < arcEndAngle; ++i )
         {
             EDA_ANGLE theta = ANGLE_360 * strokes[ i % wrapAround ] / C;
@@ -177,12 +179,39 @@ void STROKE_PARAMS::Stroke( const SHAPE* aShape, LINE_STYLE aLineStyle, int aWid
 
             if( i % 2 == 0 )
             {
-                VECTOR2I a( center.x + KiROUND( r * startAngle.Cos() ),
-                            center.y + KiROUND( r * startAngle.Sin() ) );
-                VECTOR2I b( center.x + KiROUND( r * endAngle.Cos() ),
-                            center.y + KiROUND( r * endAngle.Sin() ) );
+                if( ( ( aLineStyle == LINE_STYLE::DASHDOT || aLineStyle == LINE_STYLE::DASHDOTDOT )
+                        && i % wrapAround == 0 )
+                    || aLineStyle == LINE_STYLE::DASH )
+                {
+                    for( EDA_ANGLE currentAngle = startAngle; currentAngle < endAngle;
+                         currentAngle += angleIncrementInRadians )
+                    {
+                        VECTOR2I a( center.x + KiROUND( r * currentAngle.Cos() ),
+                                    center.y + KiROUND( r * currentAngle.Sin() ) );
 
-                aStroker( a, b );
+                        // Calculate the next angle step, ensuring it doesn't exceed the endAngle
+                        EDA_ANGLE nextAngle = currentAngle + angleIncrementInRadians;
+
+                        if( nextAngle > endAngle )
+                        {
+                            nextAngle = endAngle; // Set nextAngle to endAngle if it exceeds
+                        }
+
+                        VECTOR2I b( center.x + KiROUND( r * nextAngle.Cos() ),
+                                    center.y + KiROUND( r * nextAngle.Sin() ) );
+
+                        aStroker( a, b ); // Draw the segment as an arc
+                    }
+                }
+                else
+                {
+                    VECTOR2I a( center.x + KiROUND( r * startAngle.Cos() ),
+                                center.y + KiROUND( r * startAngle.Sin() ) );
+                    VECTOR2I b( center.x + KiROUND( r * endAngle.Cos() ),
+                                center.y + KiROUND( r * endAngle.Sin() ) );
+
+                    aStroker( a, b );
+                }
             }
 
             startAngle = endAngle;

@@ -31,8 +31,8 @@ SIM_MODEL_SPICE_FALLBACK::SIM_MODEL_SPICE_FALLBACK( TYPE aType, const std::strin
     // Create the model we *should* have had to copy its parameter list
     std::unique_ptr<SIM_MODEL> model = SIM_MODEL::Create( aType );
 
-    for( const SIM_MODEL::PARAM& param : model->GetParams() )
-        AddParam( param.info );
+    for( int ii = 0; ii < GetParamCount(); ++ii )
+        AddParam( GetParam( ii ).info );
 
     m_spiceCode = aRawSpiceCode;
 }
@@ -64,15 +64,23 @@ std::vector<std::string> SIM_MODEL_SPICE_FALLBACK::GetPinNames() const
 
 int SIM_MODEL_SPICE_FALLBACK::doFindParam( const std::string& aParamName ) const
 {
-    // Special case to allow escaped model parameters (suffixed with "_")
-
-    std::vector<std::reference_wrapper<const PARAM>> params = GetParams();
-
-    for( int ii = 0; ii < (int) params.size(); ++ii )
+    for( int ii = 0; ii < GetParamCount(); ++ii )
     {
-        const PARAM& param = params[ii];
+        const SIM_MODEL::PARAM& param = GetParam( ii );
 
-        if( param.Matches( aParamName ) || param.Matches( aParamName + "_" ) )
+        if( param.Matches( aParamName ) )
+            return ii;
+    }
+
+    // Look for escaped param names as a second pass (as they're less common)
+    for( int ii = 0; ii < GetParamCount(); ++ii )
+    {
+        const SIM_MODEL::PARAM& param = GetParam( ii );
+
+        if( !param.info.name.ends_with( '_' ) )
+            continue;
+
+        if( param.Matches( aParamName + "_" ) )
             return ii;
     }
 

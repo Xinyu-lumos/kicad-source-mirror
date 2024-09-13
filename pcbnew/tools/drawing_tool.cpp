@@ -243,7 +243,7 @@ bool DRAWING_TOOL::Init()
                 return m_mode == MODE::TUNING;
             };
 
-    CONDITIONAL_MENU& ctxMenu = m_menu.GetMenu();
+    CONDITIONAL_MENU& ctxMenu = m_menu->GetMenu();
 
     // cancel current tool goes in main context menu at the top if present
     ctxMenu.AddItem( ACTIONS::cancelInteractive,       activeToolFunctor, 1 );
@@ -267,7 +267,7 @@ bool DRAWING_TOOL::Init()
 
     std::shared_ptr<VIA_SIZE_MENU> viaSizeMenu = std::make_shared<VIA_SIZE_MENU>();
     viaSizeMenu->SetTool( this );
-    m_menu.RegisterSubMenu( viaSizeMenu );
+    m_menu->RegisterSubMenu( viaSizeMenu );
     ctxMenu.AddMenu( viaSizeMenu.get(),                viaToolActive, 500 );
 
     ctxMenu.AddSeparator( 500 );
@@ -276,7 +276,7 @@ bool DRAWING_TOOL::Init()
     // For example, zone fill/unfill is provided by the PCB control tool
 
     // Finally, add the standard zoom/grid items
-    getEditFrame<PCB_BASE_FRAME>()->AddStandardSubMenus( m_menu );
+    getEditFrame<PCB_BASE_FRAME>()->AddStandardSubMenus( *m_menu.get() );
 
     return true;
 }
@@ -621,10 +621,10 @@ int DRAWING_TOOL::PlaceReferenceImage( const TOOL_EVENT& aEvent )
 
         grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
         grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
-        cursorPos =
-                GetClampedCoords( grid.BestSnapAnchor( m_controls->GetMousePosition(),
-                                                       m_frame->GetActiveLayer(), GRID_GRAPHICS ),
-                                  COORDS_PADDING );
+        cursorPos = GetClampedCoords( grid.BestSnapAnchor( m_controls->GetMousePosition(),
+                                                           { m_frame->GetActiveLayer() },
+                                                           GRID_GRAPHICS ),
+                                      COORDS_PADDING );
         m_controls->ForceCursorPosition( true, cursorPos );
 
         if( evt->IsCancelInteractive() || ( image && evt->IsAction( &ACTIONS::undo ) ) )
@@ -708,7 +708,7 @@ int DRAWING_TOOL::PlaceReferenceImage( const TOOL_EVENT& aEvent )
 
                 if( !image || !image->ReadImageFile( fullFilename ) )
                 {
-                    wxMessageBox( _( "Could not load image from '%s'." ), fullFilename );
+                    wxMessageBox( wxString::Format(_( "Could not load image from '%s'." ), fullFilename ) );
                     delete image;
                     image = nullptr;
                     continue;
@@ -751,7 +751,7 @@ int DRAWING_TOOL::PlaceReferenceImage( const TOOL_EVENT& aEvent )
             if( !image )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selectionTool->GetSelection() );
+            m_menu->ShowContextMenu( selectionTool->GetSelection() );
         }
         else if( image && (   evt->IsAction( &ACTIONS::refreshPreview )
                            || evt->IsMotion() ) )
@@ -858,7 +858,7 @@ int DRAWING_TOOL::PlaceText( const TOOL_EVENT& aEvent )
         grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
         VECTOR2I cursorPos =
                 GetClampedCoords( grid.BestSnapAnchor( m_controls->GetMousePosition(),
-                                                       m_frame->GetActiveLayer(), GRID_TEXT ),
+                                                       { m_frame->GetActiveLayer() }, GRID_TEXT ),
                                   COORDS_PADDING );
         m_controls->ForceCursorPosition( true, cursorPos );
 
@@ -895,7 +895,7 @@ int DRAWING_TOOL::PlaceText( const TOOL_EVENT& aEvent )
             if( !text )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsClick( BUT_LEFT ) )
         {
@@ -971,7 +971,7 @@ int DRAWING_TOOL::PlaceText( const TOOL_EVENT& aEvent )
                 m_toolMgr->RunAction( PCB_ACTIONS::selectionClear );
 
                 commit.Add( text );
-                commit.Push( _( "Place Text" ) );
+                commit.Push( _( "Draw Text" ) );
 
                 m_toolMgr->RunAction<EDA_ITEM*>( PCB_ACTIONS::selectItem, text );
 
@@ -1095,7 +1095,7 @@ int DRAWING_TOOL::DrawTable( const TOOL_EVENT& aEvent )
         grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
         VECTOR2I cursorPos =
                 GetClampedCoords( grid.BestSnapAnchor( m_controls->GetMousePosition(),
-                                                       m_frame->GetActiveLayer(), GRID_TEXT ),
+                                                       { m_frame->GetActiveLayer() }, GRID_TEXT ),
                                   COORDS_PADDING );
         m_controls->ForceCursorPosition( true, cursorPos );
 
@@ -1133,7 +1133,7 @@ int DRAWING_TOOL::DrawTable( const TOOL_EVENT& aEvent )
             if( !table )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsClick( BUT_LEFT ) )
         {
@@ -1415,7 +1415,7 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
             if( !dimension )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsClick( BUT_LEFT ) || evt->IsDblClick( BUT_LEFT ) )
         {
@@ -1471,6 +1471,7 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
                 t = dimension->Type();
 
                 dimension->SetLayer( layer );
+                dimension->SetMirrored( IsBackLayer( layer ) );
                 dimension->SetTextSize( boardSettings.GetTextSize( layer ) );
                 dimension->SetTextThickness( boardSettings.GetTextThickness( layer ) );
                 dimension->SetItalic( boardSettings.GetTextItalic( layer ) );
@@ -1775,24 +1776,28 @@ int DRAWING_TOOL::PlaceImportedGraphics( const TOOL_EVENT& aEvent )
 
     for( std::unique_ptr<EDA_ITEM>& ptr : list )
     {
-        BOARD_ITEM* item = dynamic_cast<BOARD_ITEM*>( ptr.release() );
-        wxCHECK2( item, continue );
+        EDA_ITEM* eda_item = ptr.release();
 
-        newItems.push_back( item );
-
-        if( group )
+        if( eda_item->IsBOARD_ITEM() )
         {
-            group->AddItem( item );
-            groupUndoList.PushItem( ITEM_PICKER( nullptr, item, UNDO_REDO::REGROUP ) );
-        }
-        else
-        {
-            selectedItems.push_back( item );
+            BOARD_ITEM* item = static_cast<BOARD_ITEM*>( eda_item );
+
+            newItems.push_back( item );
+
+            if( group )
+            {
+                group->AddItem( item );
+                groupUndoList.PushItem( ITEM_PICKER( nullptr, item, UNDO_REDO::REGROUP ) );
+            }
+            else
+            {
+                selectedItems.push_back( item );
+            }
+
+            layer = item->GetLayer();
         }
 
-        layer = item->GetLayer();
-
-        preview.Add( item );
+        preview.Add( eda_item );
     }
 
     // Clear the current selection then select the drawings so that edit tools work on them
@@ -1860,7 +1865,7 @@ int DRAWING_TOOL::PlaceImportedGraphics( const TOOL_EVENT& aEvent )
         grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
         grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
         cursorPos = GetClampedCoords(
-                grid.BestSnapAnchor( m_controls->GetMousePosition(), layer, GRID_GRAPHICS ),
+                grid.BestSnapAnchor( m_controls->GetMousePosition(), { layer }, GRID_GRAPHICS ),
                 COORDS_PADDING );
         m_controls->ForceCursorPosition( true, cursorPos );
 
@@ -1890,7 +1895,7 @@ int DRAWING_TOOL::PlaceImportedGraphics( const TOOL_EVENT& aEvent )
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsClick( BUT_LEFT ) || evt->IsDblClick( BUT_LEFT ) )
         {
@@ -1992,7 +1997,7 @@ int DRAWING_TOOL::SetAnchor( const TOOL_EVENT& aEvent )
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
@@ -2136,7 +2141,7 @@ bool DRAWING_TOOL::drawShape( const TOOL_EVENT& aTool, PCB_SHAPE** aGraphic,
         grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
         grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
         cursorPos = GetClampedCoords(
-                grid.BestSnapAnchor( m_controls->GetMousePosition(), m_layer, GRID_GRAPHICS ),
+                grid.BestSnapAnchor( m_controls->GetMousePosition(), { m_layer }, GRID_GRAPHICS ),
                 COORDS_PADDING );
         m_controls->ForceCursorPosition( true, cursorPos );
 
@@ -2221,7 +2226,7 @@ bool DRAWING_TOOL::drawShape( const TOOL_EVENT& aTool, PCB_SHAPE** aGraphic,
             if( !graphic )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsClick( BUT_LEFT ) || evt->IsDblClick( BUT_LEFT ) )
         {
@@ -2661,7 +2666,7 @@ bool DRAWING_TOOL::drawArc( const TOOL_EVENT& aTool, PCB_SHAPE** aGraphic,
             if( !graphic )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsAction( &PCB_ACTIONS::incWidth ) )
         {
@@ -2852,7 +2857,7 @@ int DRAWING_TOOL::DrawZone( const TOOL_EVENT& aEvent )
     {
         setCursor();
 
-        LSET layers( m_frame->GetActiveLayer() );
+        LSET layers( { m_frame->GetActiveLayer() } );
         grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
         grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
 
@@ -2916,7 +2921,7 @@ int DRAWING_TOOL::DrawZone( const TOOL_EVENT& aEvent )
             if( !started )
                 m_toolMgr->VetoContextMenuMouseWarp();
 
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         // events that lock in nodes
         else if( evt->IsClick( BUT_LEFT )
@@ -3201,10 +3206,10 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
 
             for( std::pair<KIGFX::VIEW_ITEM*, int> it : items )
             {
-                BOARD_ITEM* item = dynamic_cast<BOARD_ITEM*>( it.first );
-
-                if( !item )
+                if( !it.first->IsBOARD_ITEM() )
                     continue;
+
+                BOARD_ITEM* item = static_cast<BOARD_ITEM*>( it.first );
 
                 if( item->Type() == PCB_ZONE_T && !static_cast<ZONE*>( item )->GetIsRuleArea() )
                 {
@@ -3250,13 +3255,57 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
                 {
                     if( pad->HitTest( position ) && ( pad->GetLayerSet() & lset ).any() )
                     {
-                        if( pad->GetNetCode() > 0 )
-                            return pad;
+                        return pad;
                     }
                 }
             }
 
             return nullptr;
+        }
+
+        PCB_SHAPE* findGraphic( const PCB_VIA* aVia ) const
+        {
+            const LSET lset = aVia->GetLayerSet() & LSET::AllCuMask();
+            VECTOR2I   position = aVia->GetPosition();
+            BOX2I      bbox = aVia->GetBoundingBox();
+
+            std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> items;
+            KIGFX::PCB_VIEW* view = m_frame->GetCanvas()->GetView();
+            std::vector<PCB_SHAPE*> possible_shapes;
+
+            view->Query( bbox, items );
+
+            for( const KIGFX::VIEW::LAYER_ITEM_PAIR& it : items )
+            {
+                BOARD_ITEM* item = static_cast<BOARD_ITEM*>( it.first );
+
+                if( !( item->GetLayerSet() & lset ).any() )
+                    continue;
+
+                if( item->Type() == PCB_SHAPE_T )
+                {
+                    PCB_SHAPE* shape = static_cast<PCB_SHAPE*>( item );
+
+                    if( shape->HitTest( position, aVia->GetWidth() / 2 ) )
+                        possible_shapes.push_back( shape );
+                }
+            }
+
+            PCB_SHAPE* return_shape = nullptr;
+            int min_d = std::numeric_limits<int>::max();
+
+            for( PCB_SHAPE* shape : possible_shapes )
+            {
+                int dist = ( shape->GetPosition() - position ).EuclideanNorm();
+
+                if( dist < min_d )
+                {
+                    min_d = dist;
+                    return_shape = shape;
+                }
+            }
+
+            return return_shape;
         }
 
         std::optional<int> selectPossibleNetsByPopupMenu( std::set<int>& aNetcodeList )
@@ -3397,7 +3446,7 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
             PCB_VIA*           via = static_cast<PCB_VIA*>( aItem );
             VECTOR2I           position = via->GetPosition();
 
-            if( settings->tracks == MAGNETIC_OPTIONS::CAPTURE_ALWAYS && m_gridHelper.GetSnap() )
+            if( settings->tracks != MAGNETIC_OPTIONS::NO_EFFECT && m_gridHelper.GetSnap() )
             {
                 if( PCB_TRACK* track = findTrack( via ) )
                 {
@@ -3405,12 +3454,99 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
                     VECTOR2I snap = m_gridHelper.AlignToSegment( position, trackSeg );
 
                     aItem->SetPosition( snap );
+                    return;
                 }
             }
-            else if( settings->pads == MAGNETIC_OPTIONS::CAPTURE_ALWAYS && m_gridHelper.GetSnap() )
+
+            if( settings->pads != MAGNETIC_OPTIONS::NO_EFFECT && m_gridHelper.GetSnap() )
             {
                 if( PAD* pad = findPad( via ) )
+                {
                     aItem->SetPosition( pad->GetPosition() );
+                    return;
+                }
+            }
+
+            if( settings->graphics && m_gridHelper.GetSnap() )
+            {
+                if( PCB_SHAPE* shape = findGraphic( via ) )
+                {
+                    if( shape->IsFilled() )
+                    {
+                        aItem->SetPosition( shape->GetPosition() );
+                    }
+                    else
+                    {
+                        switch( shape->GetShape() )
+                        {
+                        case SHAPE_T::SEGMENT:
+                        {
+                            SEG seg( shape->GetStart(), shape->GetEnd() );
+                            VECTOR2I snap = m_gridHelper.AlignToSegment( position, seg );
+                            aItem->SetPosition( snap );
+                            break;
+                        }
+
+                        case SHAPE_T::ARC:
+                        {
+                            if( ( shape->GetEnd() - position ).SquaredEuclideanNorm() <
+                                ( shape->GetStart() - position ).SquaredEuclideanNorm() )
+                            {
+                                aItem->SetPosition( shape->GetEnd() );
+                            }
+                            else
+                            {
+                                aItem->SetPosition( shape->GetStart() );
+                            }
+
+                            break;
+                        }
+
+                        case SHAPE_T::POLY:
+                        {
+                            if( !shape->IsPolyShapeValid() )
+                            {
+                                aItem->SetPosition( shape->GetPosition() );
+                                break;
+                            }
+
+                            const SHAPE_POLY_SET& polySet = shape->GetPolyShape();
+                            std::optional<SEG> nearestSeg;
+                            int minDist = std::numeric_limits<int>::max();
+
+                            for( int ii = 0; ii < polySet.OutlineCount(); ++ii )
+                            {
+                                const SHAPE_LINE_CHAIN& poly = polySet.Outline( ii );
+
+                                for( int jj = 0; jj < poly.SegmentCount(); ++jj )
+                                {
+                                    const SEG& seg = poly.GetSegment( jj );
+                                    int dist = seg.Distance( position );
+
+                                    if( dist < minDist )
+                                    {
+                                        minDist = dist;
+                                        nearestSeg = seg;
+                                    }
+                                }
+                            }
+
+                            if( nearestSeg )
+                            {
+                                VECTOR2I snap = m_gridHelper.AlignToSegment( position, *nearestSeg );
+                                aItem->SetPosition( snap );
+                            }
+
+                            break;
+                        }
+
+                        default:
+                            aItem->SetPosition( shape->GetPosition() );
+                        }
+
+                    }
+                }
+
             }
         }
 
@@ -3497,57 +3633,33 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
             via->SetNetCode( 0 );
             via->SetViaType( bds.m_CurrentViaType );
 
-            // for microvias, the size and hole will be changed later.
-            via->SetWidth( bds.GetCurrentViaSize() );
-            via->SetDrill( bds.GetCurrentViaDrill() );
-
-            // Usual via is from copper to component.
-            // layer pair is B_Cu and F_Cu.
-            via->SetLayerPair( B_Cu, F_Cu );
-
-            PCB_LAYER_ID    first_layer = m_frame->GetActiveLayer();
-            PCB_LAYER_ID    last_layer;
-
-            // prepare switch to new active layer:
-            if( first_layer != m_frame->GetScreen()->m_Route_Layer_TOP )
-                last_layer = m_frame->GetScreen()->m_Route_Layer_TOP;
-            else
-                last_layer = m_frame->GetScreen()->m_Route_Layer_BOTTOM;
-
-            // Adjust the actual via layer pair
-            switch( via->GetViaType() )
+            if( via->GetViaType() == VIATYPE::THROUGH )
             {
-            case VIATYPE::BLIND_BURIED:
-                via->SetLayerPair( first_layer, last_layer );
-                break;
-
-            case VIATYPE::MICROVIA: // from external to the near neighbor inner layer
-            {
-                PCB_LAYER_ID last_inner_layer =
-                    ToLAYER_ID( ( m_board->GetCopperLayerCount() - 2 ) );
-
-                if( first_layer == B_Cu )
-                    last_layer = last_inner_layer;
-                else if( first_layer == F_Cu )
-                    last_layer = In1_Cu;
-                else if( first_layer == last_inner_layer )
-                    last_layer = B_Cu;
-                else if( first_layer == In1_Cu )
-                    last_layer = F_Cu;
-
-                // else error: will be removed later
-                via->SetLayerPair( first_layer, last_layer );
-
-                // Update diameter and hole size, which where set previously for normal vias
-                NETCLASS* netClass = via->GetEffectiveNetClass();
-
-                via->SetWidth( netClass->GetuViaDiameter() );
-                via->SetDrill( netClass->GetuViaDrill() );
+                via->SetLayerPair( B_Cu, F_Cu );
             }
-            break;
+            else
+            {
+                PCB_LAYER_ID first_layer = m_frame->GetActiveLayer();
+                PCB_LAYER_ID last_layer;
 
-            default:
-                break;
+                // prepare switch to new active layer:
+                if( first_layer != m_frame->GetScreen()->m_Route_Layer_TOP )
+                    last_layer = m_frame->GetScreen()->m_Route_Layer_TOP;
+                else
+                    last_layer = m_frame->GetScreen()->m_Route_Layer_BOTTOM;
+
+                via->SetLayerPair( first_layer, last_layer );
+            }
+
+            if( via->GetViaType() == VIATYPE::MICROVIA )
+            {
+                via->SetWidth( via->GetEffectiveNetClass()->GetuViaDiameter() );
+                via->SetDrill( via->GetEffectiveNetClass()->GetuViaDrill() );
+            }
+            else
+            {
+                via->SetWidth( bds.GetCurrentViaSize() );
+                via->SetDrill( bds.GetCurrentViaDrill() );
             }
 
             return std::unique_ptr<BOARD_ITEM>( via );

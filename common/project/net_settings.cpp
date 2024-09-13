@@ -35,7 +35,7 @@
 // const int netSettingsSchemaVersion = 1;     // new overbar syntax
 // const int netSettingsSchemaVersion = 2;     // exclude buses from netclass members
 // const int netSettingsSchemaVersion = 3;     // netclass assignment patterns
-const int netSettingsSchemaVersion = 4;        // netclass ordering
+const int netSettingsSchemaVersion = 4;     // netclass ordering
 
 
 static std::optional<int> getInPcbUnits( const nlohmann::json& aObj, const std::string& aKey,

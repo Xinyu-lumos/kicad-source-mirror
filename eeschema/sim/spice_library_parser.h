@@ -41,11 +41,11 @@ public:
     virtual ~SPICE_LIBRARY_PARSER()
     {};
 
-    virtual void ReadFile( const wxString& aFilePath, REPORTER& aReporter );
+    virtual void ReadFile( const wxString& aFilePath, REPORTER& firstPass );
 
 protected:
-    void readFallbacks( const wxString& aFilePath, REPORTER& aReporter );
-    void parseFile( const wxString& aFilePath, REPORTER& aReporter );
+    void parseFile( const wxString& aFilePath, REPORTER& aReporter,
+                    std::vector<std::pair<std::string, std::string>>* aModelQueue );
 
 private:
     bool               m_forceFullParse;

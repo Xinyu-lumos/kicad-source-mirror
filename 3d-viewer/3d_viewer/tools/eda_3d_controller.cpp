@@ -37,7 +37,7 @@
 
 bool EDA_3D_CONTROLLER::Init()
 {
-    CONDITIONAL_MENU& ctxMenu = m_menu.GetMenu();
+    CONDITIONAL_MENU& ctxMenu = m_menu->GetMenu();
 
     ctxMenu.AddItem( ACTIONS::zoomInCenter,       SELECTION_CONDITIONS::ShowAlways );
     ctxMenu.AddItem( ACTIONS::zoomOutCenter,      SELECTION_CONDITIONS::ShowAlways );
@@ -118,12 +118,9 @@ int EDA_3D_CONTROLLER::Main( const TOOL_EVENT& aEvent )
         if( evt->IsCancelInteractive() )
         {
             wxWindow* canvas = m_toolMgr->GetToolHolder()->GetToolCanvas();
-            wxWindow* topLevelParent = wxGetTopLevelParent( canvas->GetParent() );
 
-            if( topLevelParent && dynamic_cast<DIALOG_SHIM*>( topLevelParent ) )
+            if( DIALOG_SHIM* dialog = dynamic_cast<DIALOG_SHIM*>( wxGetTopLevelParent( canvas ) ) )
             {
-                DIALOG_SHIM* dialog = static_cast<DIALOG_SHIM*>( topLevelParent );
-
                 if( dialog->IsQuasiModal() )
                     dialog->EndQuasiModal( wxID_CANCEL );
                 else
@@ -136,7 +133,7 @@ int EDA_3D_CONTROLLER::Main( const TOOL_EVENT& aEvent )
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu();
+            m_menu->ShowContextMenu();
         }
         else
         {

@@ -210,6 +210,8 @@ void KICAD_MANAGER_FRAME::doReCreateMenuBar()
     prefsMenu->Add( ACTIONS::configurePaths );
     prefsMenu->Add( ACTIONS::showSymbolLibTable );
     prefsMenu->Add( ACTIONS::showFootprintLibTable );
+    if( ADVANCED_CFG::GetCfg().m_EnableDesignBlocks )
+        prefsMenu->Add( ACTIONS::showDesignBlockLibTable );
     prefsMenu->Add( ACTIONS::openPreferences );
 
     prefsMenu->AppendSeparator();
@@ -231,9 +233,9 @@ void KICAD_MANAGER_FRAME::doReCreateMenuBar()
 
 
 /**
- * @brief (Re)Create the horizontal toolbar
+ * @brief (Re)Create the left vertical toolbar
  */
-void KICAD_MANAGER_FRAME::RecreateBaseHToolbar()
+void KICAD_MANAGER_FRAME::RecreateBaseLeftToolbar()
 {
     if( m_mainToolBar )
     {
@@ -242,7 +244,7 @@ void KICAD_MANAGER_FRAME::RecreateBaseHToolbar()
     else
     {
         m_mainToolBar = new ACTION_TOOLBAR( this, ID_H_TOOLBAR, wxDefaultPosition, wxDefaultSize,
-                                            KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT );
+                                            KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
         m_mainToolBar->SetAuiManager( &m_auimgr );
     }
 

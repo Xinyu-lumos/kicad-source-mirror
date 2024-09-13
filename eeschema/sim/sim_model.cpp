@@ -388,7 +388,7 @@ TYPE SIM_MODEL::ReadTypeFromFields( const std::vector<SCH_FIELD>& aFields, REPOR
     std::string deviceTypeFieldValue = GetFieldValue( &aFields, SIM_DEVICE_FIELD );
     std::string typeFieldValue = GetFieldValue( &aFields, SIM_DEVICE_SUBTYPE_FIELD );
 
-    if( deviceTypeFieldValue != "" )
+    if( !deviceTypeFieldValue.empty() )
     {
         for( TYPE type : TYPE_ITERATOR() )
         {
@@ -400,7 +400,7 @@ TYPE SIM_MODEL::ReadTypeFromFields( const std::vector<SCH_FIELD>& aFields, REPOR
         }
     }
 
-    if( typeFieldValue != "" )
+    if( typeFieldValue.empty() )
         return TYPE::NONE;
 
     if( aFields.size() > REFERENCE_FIELD )
@@ -556,10 +556,15 @@ std::unique_ptr<SIM_MODEL> SIM_MODEL::Create( const SIM_MODEL* aBaseModel,
     {
         NULL_REPORTER devnull;
         TYPE          type = aBaseModel->GetType();
+        TYPE          type_override = ReadTypeFromFields( aFields, devnull );
 
-        // No REPORTER here; we're just checking to see if we have an override
-        if( ReadTypeFromFields( aFields, devnull ) != TYPE::NONE )
-            type = ReadTypeFromFields( aFields, devnull );
+        // Check for an override in the case of IBIS models.
+        // The other models require type to be set from the base model.
+        if( dynamic_cast<const SIM_MODEL_IBIS*>( aBaseModel ) &&
+            type_override != TYPE::NONE )
+        {
+            type = type_override;
+        }
 
         if( dynamic_cast<const SIM_MODEL_SPICE_FALLBACK*>( aBaseModel ) )
             model = std::make_unique<SIM_MODEL_SPICE_FALLBACK>( type );
@@ -794,11 +799,9 @@ bool SIM_MODEL::PARAM::INFO::Matches( const std::string& aParamName ) const
 
 int SIM_MODEL::doFindParam( const std::string& aParamName ) const
 {
-    std::vector<std::reference_wrapper<const PARAM>> params = GetParams();
-
-    for( int ii = 0; ii < (int) params.size(); ++ii )
+    for( int ii = 0; ii < (int) GetParamCount(); ++ii )
     {
-        if( params[ii].get().Matches( aParamName ) )
+        if( GetParam( ii ).Matches( aParamName ) )
             return ii;
     }
 
@@ -811,17 +814,6 @@ const SIM_MODEL::PARAM* SIM_MODEL::FindParam( const std::string& aParamName ) co
     int idx = doFindParam( aParamName );
 
     return idx >= 0 ? &GetParam( idx ) : nullptr;
-}
-
-
-std::vector<std::reference_wrapper<const SIM_MODEL::PARAM>> SIM_MODEL::GetParams() const
-{
-    std::vector<std::reference_wrapper<const PARAM>> params;
-
-    for( int i = 0; i < GetParamCount(); ++i )
-        params.emplace_back( GetParam( i ) );
-
-    return params;
 }
 
 
@@ -849,12 +841,35 @@ void SIM_MODEL::doSetParamValue( int aParamIndex, const std::string& aValue )
 void SIM_MODEL::SetParamValue( int aParamIndex, const std::string& aValue,
                                SIM_VALUE::NOTATION aNotation )
 {
-    std::string value = aValue;
+    // Notation conversion is very slow.  Avoid if possible.
 
-    if( aNotation != SIM_VALUE::NOTATION::SI || aValue.find( ',' ) != std::string::npos )
-        value = SIM_VALUE::ConvertNotation( value, aNotation, SIM_VALUE::NOTATION::SI );
+    auto plainNumber =
+            []( const std::string& aString )
+            {
+                for( char c : aString )
+                {
+                    if( c != '.' && ( c < '0' || c > '9' )  )
+                        return false;
+                }
 
-    doSetParamValue( aParamIndex, value );
+                return true;
+            };
+
+
+    if( aValue.find( ',' ) != std::string::npos )
+    {
+        doSetParamValue( aParamIndex, SIM_VALUE::ConvertNotation( aValue, aNotation,
+                                                                  SIM_VALUE::NOTATION::SI ) );
+    }
+    else if( aNotation != SIM_VALUE::NOTATION::SI && !plainNumber( aValue ) )
+    {
+        doSetParamValue( aParamIndex, SIM_VALUE::ConvertNotation( aValue, aNotation,
+                                                                  SIM_VALUE::NOTATION::SI ) );
+    }
+    else
+    {
+        doSetParamValue( aParamIndex, aValue );
+    }
 }
 
 
@@ -1709,8 +1724,7 @@ void SIM_MODEL::MigrateSimModel( T& aSymbol, const PROJECT* aProject )
 
     if( !lib.IsEmpty() )
     {
-        wxString               msg;
-        WX_STRING_REPORTER     reporter( &msg );
+        WX_STRING_REPORTER     reporter;
         SIM_LIB_MGR            libMgr( aProject );
         std::vector<SCH_FIELD> emptyFields;
 

@@ -329,6 +329,9 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
             if( !zone->GetIsRuleArea() )
                 continue;
 
+            if( zone->GetRuleAreaType() != RULE_AREA_TYPE::KEEPOUT )
+                continue;
+
             if( !zone->GetDoNotAllowCopperPour() )
                 continue;
 
@@ -1816,12 +1819,8 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
         /* -------------------------------------------------------------------------------------
          * Connect nearby polygons
          */
-
-        if( ADVANCED_CFG::GetCfg().m_ZoneConnectionFiller )
-        {
-            aFillPolys.Fracture( SHAPE_POLY_SET::PM_FAST );
-            connect_nearby_polys( aFillPolys, aZone->GetMinThickness() );
-        }
+        aFillPolys.Fracture( SHAPE_POLY_SET::PM_FAST );
+        connect_nearby_polys( aFillPolys, aZone->GetMinThickness() );
 
         DUMP_POLYS_TO_COPPER_LAYER( aFillPolys, In10_Cu, wxT( "connected-nearby-polys" ) );
     }
@@ -1918,6 +1917,9 @@ bool ZONE_FILLER::fillNonCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer,
     for( ZONE* keepout : m_board->Zones() )
     {
         if( !keepout->GetIsRuleArea() )
+            continue;
+
+        if( keepout->GetRuleAreaType() != RULE_AREA_TYPE::KEEPOUT )
             continue;
 
         if( keepout->GetDoNotAllowCopperPour() && keepout->IsOnLayer( aLayer ) )

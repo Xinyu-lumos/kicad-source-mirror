@@ -40,13 +40,6 @@ std::string SPICE_GENERATOR_IBIS::ModelLine( const SPICE_ITEM& aItem ) const
     return "";
 }
 
-std::vector<std::reference_wrapper<const SIM_MODEL::PARAM>> SPICE_GENERATOR_IBIS::GetInstanceParams() const
-{
-    std::vector<std::reference_wrapper<const SIM_MODEL::PARAM>> vec;
-    return vec;
-}
-
-
 std::vector<std::string> SPICE_GENERATOR_IBIS::CurrentNames( const SPICE_ITEM& aItem ) const
 {
     std::vector<std::string> currentNames;
@@ -68,12 +61,11 @@ std::string SPICE_GENERATOR_IBIS::IbisDevice( const SPICE_ITEM& aItem, const PRO
     std::string ibisModelName   = SIM_MODEL::GetFieldValue( &aItem.fields, SIM_LIBRARY_IBIS::MODEL_FIELD );
     bool        diffMode        = SIM_MODEL::GetFieldValue( &aItem.fields, SIM_LIBRARY_IBIS::DIFF_FIELD ) == "1";
 
-    wxString           msg;
-    WX_STRING_REPORTER reporter( &msg );
+    WX_STRING_REPORTER reporter;
     wxString           path = SIM_LIB_MGR::ResolveLibraryPath( ibisLibFilename, &aProject, reporter );
 
     if( reporter.HasMessage() )
-        THROW_IO_ERROR( msg );
+        THROW_IO_ERROR( reporter.GetMessages() );
 
     KIBIS kibis( std::string( path.c_str() ) );
     kibis.m_cacheDir = std::string( aCacheDir.c_str() );
@@ -278,9 +270,9 @@ SIM_MODEL_IBIS::SIM_MODEL_IBIS( TYPE aType, const SIM_MODEL_IBIS& aSource ) :
 {
     for( PARAM& param1 : m_params )
     {
-        for( auto& param2refwrap : aSource.GetParams() )
+        for( int ii = 0; ii < aSource.GetParamCount(); ++ii )
         {
-            const PARAM& param2 = param2refwrap.get();
+            const PARAM& param2 = aSource.GetParam( ii );
 
             if( param1.info.name == param2.info.name )
                 param1.value = param2.value;

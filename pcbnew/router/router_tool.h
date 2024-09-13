@@ -70,7 +70,7 @@ public:
     void UpdateMessagePanel();
 
 private:
-    void performRouting();
+    void performRouting( VECTOR2D aStartPosition );
     void performDragging( int aMode = PNS::DM_ANY );
     void breakTrack();
 
@@ -79,13 +79,13 @@ private:
 
     int getStartLayer( const PNS::ITEM* aItem );
     void switchLayerOnViaPlacement();
-    void updateSizesAfterLayerSwitch( PCB_LAYER_ID targetLayer, const VECTOR2I& aPos );
+    void updateSizesAfterRouterEvent( int targetLayer, const VECTOR2I& aPos );
 
     int onLayerCommand( const TOOL_EVENT& aEvent );
     int onViaCommand( const TOOL_EVENT& aEvent );
     int onTrackViaSizeChanged( const TOOL_EVENT& aEvent );
 
-    bool prepareInteractive();
+    bool prepareInteractive( VECTOR2D aStartPosition );
     bool finishInteractive();
     void saveRouterDebugLog();
 
@@ -94,7 +94,7 @@ private:
     std::shared_ptr<ACTION_MENU> m_trackViaMenu;
 
     int                          m_lastTargetLayer;
-    PCB_LAYER_ID                 m_originalActiveLayer;
+    int                          m_originalActiveLayer;
 
     bool                         m_inRouterTool;         // Re-entrancy guard
 };

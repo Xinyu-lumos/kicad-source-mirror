@@ -72,6 +72,7 @@ static const wxChar HoleWallThickness[] = wxT( "HoleWallPlatingThickness" );
 static const wxChar CoroutineStackSize[] = wxT( "CoroutineStackSize" );
 static const wxChar ShowRouterDebugGraphics[] = wxT( "ShowRouterDebugGraphics" );
 static const wxChar EnableRouterDump[] = wxT( "EnableRouterDump" );
+static const wxChar EnableMultichannelTool[] = wxT( "EnableMultichannelTool" );
 static const wxChar HyperZoom[] = wxT( "HyperZoom" );
 static const wxChar CompactFileSave[] = wxT( "CompactSave" );
 static const wxChar DrawArcAccuracy[] = wxT( "DrawArcAccuracy" );
@@ -98,6 +99,7 @@ static const wxChar UpdateUIEventInterval[] = wxT( "UpdateUIEventInterval" );
 static const wxChar V3DRT_BevelHeight_um[] = wxT( "V3DRT_BevelHeight_um" );
 static const wxChar V3DRT_BevelExtentFactor[] = wxT( "V3DRT_BevelExtentFactor" );
 static const wxChar UseClipper2[] = wxT( "UseClipper2" );
+static const wxChar EnableDesignBlocks[] = wxT( "EnableDesignBlocks" );
 static const wxChar EnableGenerators[] = wxT( "EnableGenerators" );
 static const wxChar EnableGit[] = wxT( "EnableGit" );
 static const wxChar EnableLibWithText[] = wxT( "EnableLibWithText" );
@@ -115,8 +117,8 @@ static const wxChar EnableAPILogging[] = wxT( "EnableAPILogging" );
 static const wxChar MaxFileSystemWatchers[] = wxT( "MaxFileSystemWatchers" );
 static const wxChar MinorSchematicGraphSize[] = wxT( "MinorSchematicGraphSize" );
 static const wxChar ResolveTextRecursionDepth[] = wxT( "ResolveTextRecursionDepth" );
-static const wxChar ZoneConnectionFiller[] = wxT( "ZoneConnectionFiller" );
-
+static const wxChar EnableExtensionSnaps[] = wxT( "EnableExtensionSnaps" );
+static const wxChar EnableSnapAnchorsDebug[] = wxT( "EnableSnapAnchorsDebug" );
 } // namespace KEYS
 
 
@@ -206,6 +208,7 @@ ADVANCED_CFG::ADVANCED_CFG()
     m_CoroutineStackSize        = AC_STACK::default_stack;
     m_ShowRouterDebugGraphics   = false;
     m_EnableRouterDump          = false;
+    m_EnableMultichannelTool    = false;
     m_HyperZoom                 = false;
     m_DrawArcAccuracy           = 10.0;
     m_DrawArcCenterMaxAngle     = 50.0;
@@ -241,6 +244,7 @@ ADVANCED_CFG::ADVANCED_CFG()
     m_CompactSave               = false;
     m_UpdateUIEventInterval     = 0;
     m_ShowRepairSchematic       = false;
+    m_EnableDesignBlocks        = false;
     m_EnableGenerators          = false;
     m_EnableGit                 = false;
     m_EnableLibWithText         = false;
@@ -278,7 +282,8 @@ ADVANCED_CFG::ADVANCED_CFG()
 
     m_ResolveTextRecursionDepth = 3;
 
-    m_ZoneConnectionFiller = false;
+    m_EnableExtensionSnaps = false;
+    m_EnableSnapAnchorsDebug = false;
 
     loadFromConfigFile();
 }
@@ -356,6 +361,9 @@ void ADVANCED_CFG::loadSettings( wxConfigBase& aCfg )
     configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::ShowRouterDebugGraphics,
                                                 &m_ShowRouterDebugGraphics,
                                                 m_ShowRouterDebugGraphics ) );
+
+    configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::EnableMultichannelTool,
+                                                &m_EnableMultichannelTool, m_EnableMultichannelTool ) );
 
     configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::EnableRouterDump,
                                                 &m_EnableRouterDump, m_EnableRouterDump ) );
@@ -458,6 +466,9 @@ void ADVANCED_CFG::loadSettings( wxConfigBase& aCfg )
                                                m_DisambiguationMenuDelay,
                                                50, 10000 ) );
 
+    configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::EnableDesignBlocks,
+                                                &m_EnableDesignBlocks, m_EnableDesignBlocks ) );
+
     configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::EnableGenerators,
                                                 &m_EnableGenerators, m_EnableGenerators ) );
 
@@ -517,8 +528,13 @@ void ADVANCED_CFG::loadSettings( wxConfigBase& aCfg )
                                                   &m_ResolveTextRecursionDepth,
                                                   m_ResolveTextRecursionDepth, 0, 10 ) );
 
-    configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::ZoneConnectionFiller,
-                                                &m_ZoneConnectionFiller, m_ZoneConnectionFiller ) );
+    configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::EnableExtensionSnaps,
+                                                  &m_EnableExtensionSnaps,
+                                                  m_EnableExtensionSnaps ) );
+
+    configParams.push_back( new PARAM_CFG_BOOL( true, AC_KEYS::EnableSnapAnchorsDebug,
+                                                    &m_EnableSnapAnchorsDebug,
+                                                    m_EnableSnapAnchorsDebug ) );
 
     // Special case for trace mask setting...we just grab them and set them immediately
     // Because we even use wxLogTrace inside of advanced config

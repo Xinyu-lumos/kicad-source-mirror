@@ -32,6 +32,7 @@
 #include "3d_info.h"
 #include <core/typeinfo.h>
 #include "string_utils.h"
+#include <hash_128.h>
 #include <list>
 #include <map>
 #include "plugins/3dapi/c3dmodel.h"
@@ -56,9 +57,9 @@ public:
     S3D_CACHE();
     virtual ~S3D_CACHE();
 
-    KICAD_T Type() noexcept override
+    PROJECT::ELEM ProjectElementType() noexcept override
     {
-        return S3D_CACHE_T;
+        return PROJECT::ELEM::S3DCACHE;
     }
 
     /**
@@ -157,10 +158,10 @@ private:
      * Calculate the SHA1 hash of the given file.
      *
      * @param aFileName file name (full path).
-     * @param aSHA1Sum a 20 byte character array to hold the SHA1 hash.
+     * @param aHash a 128 bit hash to hold the hash.
      * @return true on  success, otherwise false.
      */
-    bool getSHA1( const wxString& aFileName, unsigned char* aSHA1Sum );
+    bool getHash( const wxString& aFileName, HASH_128& aHash );
 
     // load scene data from a cache file
     bool loadCacheData( S3D_CACHE_ENTRY* aCacheItem );

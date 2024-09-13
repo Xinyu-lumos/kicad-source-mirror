@@ -110,6 +110,12 @@ bool CONNECTIVITY_DATA::Build( BOARD* aBoard, PROGRESS_REPORTER* aReporter )
         aReporter->KeepRefreshing( false );
     }
 
+    for( auto net : m_nets )
+        if ( net )
+            delete net;
+
+    m_nets.clear();
+
     m_connAlgo.reset( new CN_CONNECTIVITY_ALGO( this ) );
     m_connAlgo->Build( aBoard, aReporter );
 
@@ -441,7 +447,7 @@ bool CONNECTIVITY_DATA::IsConnectedOnLayer( const BOARD_CONNECTED_ITEM *aItem, i
             CN_ZONE_LAYER* zoneLayer = dynamic_cast<CN_ZONE_LAYER*>( connected );
 
             if( connected->Valid()
-                    && connected->Layers().Overlaps( aLayer )
+                    && connected->StartLayer() <= aLayer && connected->EndLayer() >= aLayer
                     && matchType( connected->Parent()->Type() )
                     && connected->Net() == aItem->GetNetCode() )
             {

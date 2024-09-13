@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2022 Mikolaj Wielgus
- * Copyright (C) 2022-2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2022-2024 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,7 +26,6 @@
 // (especially on msys2 + wxWidgets 3.0.x)
 #include <sim/sim_model_spice.h>
 #include <sim/sim_model_spice_fallback.h>
-#include <sim/spice_model_parser.h>
 #include <sim/sim_library_spice.h>
 
 #include <boost/algorithm/string/trim.hpp>
@@ -55,17 +54,24 @@ std::string SPICE_GENERATOR_SPICE::Preview( const SPICE_ITEM& aItem ) const
 
 
 std::unique_ptr<SIM_MODEL_SPICE> SIM_MODEL_SPICE::Create( const SIM_LIBRARY_SPICE& aLibrary,
-                                                          const std::string& aSpiceCode )
+                                                          const std::string& aSpiceCode,
+                                                          bool aFirstPass, REPORTER& aReporter )
 {
-    SIM_MODEL::TYPE            modelType = SPICE_MODEL_PARSER::ReadType( aLibrary, aSpiceCode );
-    std::unique_ptr<SIM_MODEL> model = SIM_MODEL::Create( modelType );
+    SIM_MODEL::TYPE type = SIM_MODEL::TYPE::NONE;
 
-    if( SIM_MODEL_SPICE* spiceModel = dynamic_cast<SIM_MODEL_SPICE*>( model.release() ) )
+    if( !SPICE_MODEL_PARSER::ReadType( aLibrary, aSpiceCode, &type, aFirstPass ) )
+        return nullptr;
+
+    std::unique_ptr<SIM_MODEL> model = SIM_MODEL::Create( type );
+
+    if( dynamic_cast<SIM_MODEL_SPICE*>( model.get() ) )
     {
+        std::unique_ptr<SIM_MODEL_SPICE> spiceModel( static_cast<SIM_MODEL_SPICE*>( model.release() ) );
+
         try
         {
             spiceModel->m_spiceModelParser->ReadModel( aLibrary, aSpiceCode );
-            return std::unique_ptr<SIM_MODEL_SPICE>( spiceModel );
+            return spiceModel;
         }
         catch( const IO_ERROR& )
         {
@@ -74,7 +80,7 @@ std::unique_ptr<SIM_MODEL_SPICE> SIM_MODEL_SPICE::Create( const SIM_LIBRARY_SPIC
     }
 
     // Fall back to raw spice code
-    return std::make_unique<SIM_MODEL_SPICE_FALLBACK>( modelType, aSpiceCode );
+    return std::make_unique<SIM_MODEL_SPICE_FALLBACK>( type, aSpiceCode );
 }
 
 

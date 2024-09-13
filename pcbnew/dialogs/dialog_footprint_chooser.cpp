@@ -188,7 +188,7 @@ void DIALOG_FOOTPRINT_CHOOSER::build3DCanvas()
     // TODO(JE) use all control options
     m_boardAdapter.m_MousewheelPanning = settings->m_Input.scroll_modifier_zoom != 0;
 
-    EDA_3D_VIEWER_SETTINGS* cfg = Pgm().GetSettingsManager().GetAppSettings<EDA_3D_VIEWER_SETTINGS>();
+    auto* cfg = Pgm().GetSettingsManager().GetAppSettings<EDA_3D_VIEWER_SETTINGS>( "3d_viewer" );
 
     if( cfg )
     {
@@ -209,6 +209,7 @@ void DIALOG_FOOTPRINT_CHOOSER::build3DCanvas()
         cfg->m_Render.show_solderpaste = true;
         cfg->m_Render.show_zones = true;
         cfg->m_Render.show_board_body = true;
+        cfg->m_Render.use_board_editor_copper_colors = false;
     }
 
     m_chooserPanel->m_RightPanelSizer->Add( m_preview3DCanvas, 1, wxEXPAND, 5 );

@@ -104,10 +104,10 @@ void PCB_IO_KICAD_SEXPR_PARSER::init()
     // The English name will survive if parsing only a footprint.
     for( int layer = 0;  layer < PCB_LAYER_ID_COUNT;  ++layer )
     {
-        std::string untranslated = TO_UTF8( wxString( LSET::Name( PCB_LAYER_ID( layer ) ) ) );
+        std::string untranslated = TO_UTF8( LSET::Name( PCB_LAYER_ID( layer ) ) );
 
-        m_layerIndices[ untranslated ] = PCB_LAYER_ID( layer );
-        m_layerMasks[ untranslated ]   = LSET( PCB_LAYER_ID( layer ) );
+        m_layerIndices[untranslated] = PCB_LAYER_ID( layer );
+        m_layerMasks[untranslated] = LSET( { PCB_LAYER_ID( layer ) } );
     }
 
     m_layerMasks[ "*.Cu" ]      = LSET::AllCuMask();
@@ -130,7 +130,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::init()
     {
         std::string key = StrPrintf( "Inner%d.Cu", i );
 
-        m_layerMasks[ key ] = LSET( PCB_LAYER_ID( In15_Cu - i ) );
+        m_layerMasks[key] = LSET( { PCB_LAYER_ID( In15_Cu - 2 * i ) } );
     }
 }
 
@@ -572,7 +572,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseEDA_TEXT( EDA_TEXT* aText )
                 case T_italic:
                 {
                     bool value = parseMaybeAbsentBool( true );
-                    aText->SetItalic( value );
+                    aText->SetItalicFlag( value );
                 }
                     break;
 
@@ -1141,9 +1141,10 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
         if( Pgm().IsGUI() && m_queryUserCallback )
         {
             msg.Printf( _( "Items found on undefined layers (%s).\n"
-                           "Do you wish to rescue them to the %s layer?" ),
-                        undefinedLayerNames,
-                        destLayerName );
+                           "Do you wish to rescue them to the %s layer?\n"
+                           "\n"
+                           "Zones will need to be refilled." ),
+                        undefinedLayerNames, destLayerName );
 
             if( !m_queryUserCallback( _( "Undefined Layers Warning" ), wxICON_WARNING, msg,
                                       _( "Rescue" ) ) )
@@ -1151,10 +1152,20 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
                 THROW_IO_ERROR( wxT( "CANCEL" ) );
             }
 
-            auto visitItem = [&]( BOARD_ITEM* curr_item )
+            // Make sure the destination layer is enabled, even if not in the file
+            m_board->SetEnabledLayers( m_board->GetEnabledLayers().set( destLayer ) );
+
+            const auto visitItem = [&]( BOARD_ITEM& curr_item )
             {
-                if( curr_item->GetLayer() == Rescue )
-                    curr_item->SetLayer( destLayer );
+                LSET layers = curr_item.GetLayerSet();
+
+                if( layers.test( Rescue ) )
+                {
+                    layers.set( destLayer );
+                    layers.reset( Rescue );
+                }
+
+                curr_item.SetLayerSet( layers );
             };
 
             for( PCB_TRACK* track : m_board->Tracks() )
@@ -1182,23 +1193,23 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
                 }
                 else
                 {
-                    visitItem( track );
+                    visitItem( *track );
                 }
             }
 
             for( BOARD_ITEM* zone : m_board->Zones() )
-                visitItem( zone );
+                visitItem( *zone );
 
             for( BOARD_ITEM* drawing : m_board->Drawings() )
-                visitItem( drawing );
+                visitItem( *drawing );
 
             for( FOOTPRINT* fp : m_board->Footprints() )
             {
                 for( BOARD_ITEM* drawing : fp->GraphicalItems() )
-                    visitItem( drawing );
+                    visitItem( *drawing );
 
                 for( BOARD_ITEM* zone : fp->Zones() )
-                    visitItem( zone );
+                    visitItem( *zone );
             }
 
             m_undefinedLayers.clear();
@@ -1705,7 +1716,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseBoardStackup()
             type = BS_ITEM_TYPE_SOLDERPASTE;
         else if( layerId == UNDEFINED_LAYER )
             type = BS_ITEM_TYPE_DIELECTRIC;
-        else if( layerId >= F_Cu && layerId <= B_Cu )
+        else if( !( layerId & 1 ) )
             type = BS_ITEM_TYPE_COPPER;
 
         BOARD_STACKUP_ITEM* item = nullptr;
@@ -1931,26 +1942,34 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseLayers()
     {
         // Rework the layer numbers, which changed when the Cu stack
         // was flipped.  So we instead use position in the list.
+        for( size_t i = 1; i < cu.size() - 1; i++ )
+        {
+            int tmpLayer = LSET::NameToLayer( cu[i].m_name );
+
+            if( i < 0 )
+                tmpLayer = ( i + 1 ) * 2;
+
+            cu[i].m_number = tmpLayer;
+        }
+
+        cu[0].m_number = F_Cu;
         cu[cu.size()-1].m_number = B_Cu;
 
-        for( unsigned i=0; i < cu.size()-1; ++i )
-            cu[i].m_number = i;
-
-        for( std::vector<LAYER>::const_iterator it = cu.begin(); it<cu.end();  ++it )
+        for( auto& cu_layer : cu )
         {
-            enabledLayers.set( it->m_number );
+            enabledLayers.set( cu_layer.m_number );
 
-            if( it->m_visible )
-                visibleLayers.set( it->m_number );
+            if( cu_layer.m_visible )
+                visibleLayers.set( cu_layer.m_number );
             else
                 anyHidden = true;
 
-            m_board->SetLayerDescr( PCB_LAYER_ID( it->m_number ), *it );
+            m_board->SetLayerDescr( PCB_LAYER_ID( cu_layer.m_number ), cu_layer );
 
-            UTF8 name = it->m_name;
+            UTF8 name = cu_layer.m_name;
 
-            m_layerIndices[ name ] = PCB_LAYER_ID( it->m_number );
-            m_layerMasks[   name ] = LSET( PCB_LAYER_ID( it->m_number ) );
+            m_layerIndices[ name ] = PCB_LAYER_ID( cu_layer.m_number );
+            m_layerMasks[ name ] = LSET( { PCB_LAYER_ID( cu_layer.m_number ) } );
         }
 
         copperLayerCount = cu.size();
@@ -1983,7 +2002,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseLayers()
             // If we are here, then we have found a translated layer name.  Put it in the maps
             // so that items on this layer get the appropriate layer ID number.
             m_layerIndices[ UTF8( layer.m_name ) ] = it->second;
-            m_layerMasks[   UTF8( layer.m_name ) ] = it->second;
+            m_layerMasks[   UTF8( layer.m_name ) ] = LSET( { it->second } );
             layer.m_name = it->first;
         }
 
@@ -2023,11 +2042,21 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseLayers()
 }
 
 
-template<class T, class M>
-T PCB_IO_KICAD_SEXPR_PARSER::lookUpLayer( const M& aMap )
+LSET PCB_IO_KICAD_SEXPR_PARSER::lookUpLayerSet( const LSET_MAP& aMap )
+{
+    LSET_MAP::const_iterator it = aMap.find( curText );
+
+    if( it == aMap.end() )
+        return LSET( { Rescue } );
+
+    return it->second;
+}
+
+
+PCB_LAYER_ID PCB_IO_KICAD_SEXPR_PARSER::lookUpLayer( const LAYER_ID_MAP& aMap )
 {
     // avoid constructing another std::string, use lexer's directly
-    typename M::const_iterator it = aMap.find( curText );
+    LAYER_ID_MAP::const_iterator it = aMap.find( curText );
 
     if( it == aMap.end() )
     {
@@ -2050,7 +2079,7 @@ PCB_LAYER_ID PCB_IO_KICAD_SEXPR_PARSER::parseBoardItemLayer()
 
     NextTok();
 
-    PCB_LAYER_ID layerIndex = lookUpLayer<PCB_LAYER_ID>( m_layerIndices );
+    PCB_LAYER_ID layerIndex = lookUpLayer( m_layerIndices );
 
     // Handle closing ) in object parser.
 
@@ -2067,8 +2096,7 @@ LSET PCB_IO_KICAD_SEXPR_PARSER::parseBoardItemLayersAsMask()
 
     for( T token = NextTok();  token != T_RIGHT;  token = NextTok() )
     {
-        LSET mask = lookUpLayer<LSET>( m_layerMasks );
-        layerMask |= mask;
+        layerMask |= lookUpLayerSet( m_layerMasks );
     }
 
     return layerMask;
@@ -5252,9 +5280,9 @@ PAD* PCB_IO_KICAD_SEXPR_PARSER::parsePAD( FOOTPRINT* aParent )
 
             for( token = NextTok(); token != T_RIGHT; token = NextTok() )
             {
-                PCB_LAYER_ID layer = lookUpLayer<PCB_LAYER_ID>( m_layerIndices );
+                PCB_LAYER_ID layer = lookUpLayer( m_layerIndices );
 
-                if( layer < F_Cu || layer > B_Cu )
+                if( !IsCopperLayer( layer ) )
                     Expecting( "copper layer name" );
 
                 pad->SetZoneLayerOverride( layer, ZLO_FORCE_FLASHED );
@@ -5853,10 +5881,14 @@ PCB_VIA* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_VIA()
         {
             PCB_LAYER_ID layer1, layer2;
             NextTok();
-            layer1 = lookUpLayer<PCB_LAYER_ID>( m_layerIndices );
+            layer1 = lookUpLayer( m_layerIndices );
             NextTok();
-            layer2 = lookUpLayer<PCB_LAYER_ID>( m_layerIndices );
+            layer2 = lookUpLayer( m_layerIndices );
             via->SetLayerPair( layer1, layer2 );
+
+            if( layer1 == UNDEFINED_LAYER || layer2 == UNDEFINED_LAYER )
+                Expecting( "layer name" );
+
             NeedRIGHT();
             break;
         }
@@ -5897,9 +5929,9 @@ PCB_VIA* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_VIA()
 
             for( token = NextTok();  token != T_RIGHT;  token = NextTok() )
             {
-                PCB_LAYER_ID layer = lookUpLayer<PCB_LAYER_ID>( m_layerIndices );
+                PCB_LAYER_ID layer = lookUpLayer( m_layerIndices );
 
-                if( layer < F_Cu || layer > B_Cu )
+                if( !IsCopperLayer( layer ) )
                     Expecting( "copper layer name" );
 
                 via->SetZoneLayerOverride( layer, ZLO_FORCE_FLASHED );
@@ -6272,9 +6304,30 @@ ZONE* PCB_IO_KICAD_SEXPR_PARSER::parseZONE( BOARD_ITEM_CONTAINER* aParent )
 
             break;
 
+        case T_placement:
+            zone->SetIsRuleArea( true );
+            zone->SetRuleAreaType( RULE_AREA_TYPE::PLACEMENT );
+
+            for( token = NextTok();  token != T_RIGHT;  token = NextTok() )
+            {
+                if( token == T_LEFT )
+                    token = NextTok();
+
+                if( token == T_expr )
+                {
+                    token = NextTok();
+                    zone->SetRuleAreaExpression( FromUTF8() );
+                }
+
+                NeedRIGHT();
+            }
+
+            break;
+
         case T_keepout:
             // "keepout" now means rule area, but the file token stays the same
             zone->SetIsRuleArea( true );
+            zone->SetRuleAreaType( RULE_AREA_TYPE::KEEPOUT );
 
             // Initialize these two because their tokens won't appear in older files:
             zone->SetDoNotAllowPads( false );

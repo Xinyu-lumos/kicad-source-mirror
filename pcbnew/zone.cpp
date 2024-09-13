@@ -116,6 +116,8 @@ void ZONE::InitDataFromSrcInCopyCtor( const ZONE& aZone )
     m_zoneName                = aZone.m_zoneName;
     m_priority                = aZone.m_priority;
     m_isRuleArea              = aZone.m_isRuleArea;
+    m_ruleAreaExpression = aZone.m_ruleAreaExpression;
+    m_ruleAreaType = aZone.m_ruleAreaType;
     SetLayerSet( aZone.GetLayerSet() );
 
     m_doNotAllowCopperPour    = aZone.m_doNotAllowCopperPour;
@@ -239,18 +241,32 @@ VECTOR2I ZONE::GetPosition() const
 PCB_LAYER_ID ZONE::GetLayer() const
 {
     if( m_layerSet.count() == 1 )
-        return m_layerSet.UIOrder()[0];
-    else
-        return UNDEFINED_LAYER;
+    {
+        return GetFirstLayer();
+    }
+    return UNDEFINED_LAYER;
 }
 
 
 PCB_LAYER_ID ZONE::GetFirstLayer() const
 {
-    if( m_layerSet.count() )
-        return m_layerSet.UIOrder()[0];
-    else
+    if( m_layerSet.count() == 0 )
+    {
         return UNDEFINED_LAYER;
+    }
+
+    const LSEQ uiLayers = m_layerSet.UIOrder();
+
+    // This can't use m_layerSet.count() because it's possible to have a zone on
+    // a rescue layer that is not in the UI order.
+    if( uiLayers.size() )
+    {
+        return uiLayers[0];
+    }
+
+    // If it's not in the UI set at all, just return the first layer in the set.
+    // (we know the count > 0)
+    return m_layerSet.Seq()[0];
 }
 
 
@@ -262,11 +278,11 @@ bool ZONE::IsOnCopperLayer() const
 
 void ZONE::SetLayer( PCB_LAYER_ID aLayer )
 {
-    SetLayerSet( LSET( aLayer ) );
+    SetLayerSet( LSET( { aLayer } ) );
 }
 
 
-void ZONE::SetLayerSet( LSET aLayerSet )
+void ZONE::SetLayerSet( const LSET& aLayerSet )
 {
     if( aLayerSet.count() == 0 )
         return;
@@ -550,6 +566,7 @@ void ZONE::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>&
     {
         msg.Empty();
 
+// fixme placement
         if( GetDoNotAllowVias() )
             AccumulateDescription( msg, _( "No vias" ) );
 
@@ -1401,53 +1418,64 @@ bool ZONE::operator==( const BOARD_ITEM& aOther ) const
 
 
 bool ZONE::operator==( const ZONE& aOther ) const
+
 {
-    if( GetIsRuleArea() != aOther.GetIsRuleArea() )
+    if( aOther.Type() != Type() )
         return false;
 
-    if( GetLayerSet() != aOther.GetLayerSet() )
+    const ZONE& other = static_cast<const ZONE&>( aOther );
+
+    if( GetIsRuleArea() != other.GetIsRuleArea() )
         return false;
 
-    if( GetNetCode() != aOther.GetNetCode() )
-        return false;
+     if( GetIsRuleArea() )
+     {
+        if( GetRuleAreaType() != other.GetRuleAreaType() )
+            return false;
 
-    if( GetIsRuleArea() )
-    {
-        if( GetDoNotAllowCopperPour() != aOther.GetDoNotAllowCopperPour() )
-            return false;
-        if( GetDoNotAllowTracks() != aOther.GetDoNotAllowTracks() )
-            return false;
-        if( GetDoNotAllowVias() != aOther.GetDoNotAllowVias() )
-            return false;
-        if( GetDoNotAllowFootprints() != aOther.GetDoNotAllowFootprints() )
-            return false;
-        if( GetDoNotAllowPads() != aOther.GetDoNotAllowPads() )
-            return false;
+        if( GetRuleAreaType() == RULE_AREA_TYPE::KEEPOUT )
+        {
+            if( GetDoNotAllowCopperPour() != other.GetDoNotAllowCopperPour() )
+                return false;
+            if( GetDoNotAllowTracks() != other.GetDoNotAllowTracks() )
+                return false;
+            if( GetDoNotAllowVias() != other.GetDoNotAllowVias() )
+                return false;
+            if( GetDoNotAllowFootprints() != other.GetDoNotAllowFootprints() )
+                return false;
+            if( GetDoNotAllowPads() != other.GetDoNotAllowPads() )
+                return false;
+        }
+        else if ( GetRuleAreaType() == RULE_AREA_TYPE::PLACEMENT )
+        {
+            if( GetRuleAreaExpression() != other.GetRuleAreaExpression() )
+                return false;
+        }
     }
     else
     {
-        if( GetAssignedPriority() != aOther.GetAssignedPriority() )
+        if( GetAssignedPriority() != other.GetAssignedPriority() )
             return false;
 
-        if( GetMinThickness() != aOther.GetMinThickness() )
+        if( GetMinThickness() != other.GetMinThickness() )
             return false;
 
-        if( GetCornerSmoothingType() != aOther.GetCornerSmoothingType() )
+        if( GetCornerSmoothingType() != other.GetCornerSmoothingType() )
             return false;
 
-        if( GetCornerRadius() != aOther.GetCornerRadius() )
+        if( GetCornerRadius() != other.GetCornerRadius() )
             return false;
 
-        if( GetTeardropParams() != aOther.GetTeardropParams() )
+        if( GetTeardropParams() != other.GetTeardropParams() )
             return false;
     }
 
-    if( GetNumCorners() != aOther.GetNumCorners() )
+    if( GetNumCorners() != other.GetNumCorners() )
         return false;
 
     for( int ii = 0; ii < GetNumCorners(); ii++ )
     {
-        if( GetCornerPosition( ii ) != aOther.GetCornerPosition( ii ) )
+        if( GetCornerPosition( ii ) != other.GetCornerPosition( ii ) )
             return false;
     }
 
@@ -1564,6 +1592,15 @@ static struct ZONE_DESC
                   .Map( ZONE_FILL_MODE::HATCH_PATTERN, _HKI( "Hatch pattern" ) );
         }
 
+        ENUM_MAP<RULE_AREA_TYPE>& raTypeMap = ENUM_MAP<RULE_AREA_TYPE>::Instance();
+
+        if( raTypeMap.Choices().GetCount() == 0 )
+        {
+            raTypeMap.Undefined( RULE_AREA_TYPE::KEEPOUT );
+            raTypeMap.Map( RULE_AREA_TYPE::KEEPOUT, _HKI( "Keepout" ) )
+                  .Map( RULE_AREA_TYPE::PLACEMENT, _HKI( "Placement" ) );
+        }
+
         ENUM_MAP<ISLAND_REMOVAL_MODE>& irmMap = ENUM_MAP<ISLAND_REMOVAL_MODE>::Instance();
 
         if( irmMap.Choices().GetCount() == 0 )
@@ -1599,6 +1636,15 @@ static struct ZONE_DESC
                 {
                     if( ZONE* zone = dynamic_cast<ZONE*>( aItem ) )
                         return !zone->GetIsRuleArea() && IsCopperLayer( zone->GetFirstLayer() );
+
+                    return false;
+                };
+
+        auto isRuleArea =
+                []( INSPECTABLE* aItem ) -> bool
+                {
+                    if( ZONE* zone = dynamic_cast<ZONE*>( aItem ) )
+                        return zone->GetIsRuleArea();
 
                     return false;
                 };
@@ -1641,6 +1687,11 @@ static struct ZONE_DESC
         propMgr.AddProperty( new PROPERTY<ZONE, wxString>( _HKI( "Name" ),
                     &ZONE::SetZoneName, &ZONE::GetZoneName ) );
 
+        propMgr.AddProperty( new PROPERTY_ENUM<ZONE, RULE_AREA_TYPE>( _HKI( "Rule Area Type" ),
+                                                           &ZONE::SetRuleAreaType,
+                                                           &ZONE::GetRuleAreaType ) )
+                .SetAvailableFunc( isRuleArea );
+
         const wxString groupFill = _HKI( "Fill Style" );
 
         propMgr.AddProperty( new PROPERTY_ENUM<ZONE, ZONE_FILL_MODE>( _HKI( "Fill Mode" ),
@@ -1655,6 +1706,7 @@ static struct ZONE_DESC
                 .SetAvailableFunc( isCopperZone )
                 .SetWriteableFunc( isHatchedFill );
 
+        // TODO: Switch to translated
         auto atLeastMinWidthValidator =
                 []( const wxAny&& aValue, EDA_ITEM* aZone ) -> VALIDATOR_RESULT
                 {
@@ -1760,3 +1812,4 @@ static struct ZONE_DESC
 IMPLEMENT_ENUM_TO_WXANY( ZONE_CONNECTION )
 IMPLEMENT_ENUM_TO_WXANY( ZONE_FILL_MODE )
 IMPLEMENT_ENUM_TO_WXANY( ISLAND_REMOVAL_MODE )
+IMPLEMENT_ENUM_TO_WXANY( RULE_AREA_TYPE )

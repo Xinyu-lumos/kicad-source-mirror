@@ -228,6 +228,15 @@ public:
     bool m_EnableRouterDump;
 
     /**
+     * Enable Multichannel tool(s) (repeat layout, placement areas)
+     *
+     * Setting name: "EnableMultichannelTool"
+     * Valid values: 0 or 1
+     * Default value: 0
+     */
+    bool m_EnableMultichannelTool;
+
+    /**
      * Slide the zoom steps over for debugging things "up close".
      *
      * Setting name: "EnableRouterDump"
@@ -458,6 +467,15 @@ public:
     int m_DisambiguationMenuDelay;
 
     /**
+     * Enable the new Design Blocks feature
+     *
+     * Setting name: "EnableDesignBlocks"
+     * Valid values: true or false
+     * Default value: false
+     */
+    bool m_EnableDesignBlocks;
+
+    /**
      * Enable support for generators.
      *
      * Setting name: "EnableGenerators"
@@ -627,13 +645,20 @@ public:
     int m_ResolveTextRecursionDepth;
 
     /**
-     * Use the new zone-connection fill routine
+     * Enable snap anchors based on item line extensions.
      *
-     * Setting name: "ZoneConnectionFiller"
-     * Valid values: true or false
+     * Setting name: "EnableExtensionSnaps"
      * Default value: false
      */
-    bool m_ZoneConnectionFiller;
+    bool m_EnableExtensionSnaps;
+
+    /**
+     * Enable snap anchors debug visualization.
+     *
+     * Setting name: "EnableSnapAnchorsDebug"
+     * Default value: false
+     */
+    bool m_EnableSnapAnchorsDebug;
 
 ///@}
 

@@ -617,7 +617,7 @@ int DRAWING_TOOL::InteractivePlaceWithPreview( const TOOL_EVENT& aEvent,
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu( selection() );
+            m_menu->ShowContextMenu( selection() );
         }
         else if( evt->IsClick( BUT_LEFT ) )
         {
@@ -698,7 +698,7 @@ int DRAWING_TOOL::PlaceCharacteristics( const TOOL_EVENT& aEvent )
 
     PCB_LAYER_ID layer = m_frame->GetActiveLayer();
 
-    if( ( layerSet & LSET( layer ) ).count() ) // if layer is a forbidden layer
+    if( ( layerSet & LSET( { layer } ) ).count() ) // if layer is a forbidden layer
         m_frame->SetActiveLayer( Cmts_User );
 
     std::vector<BOARD_ITEM*> table = DrawBoardCharacteristics( { 0, 0 }, m_frame->GetActiveLayer(),
@@ -761,7 +761,7 @@ int DRAWING_TOOL::PlaceStackup( const TOOL_EVENT& aEvent )
     PCB_LAYER_ID layer      = m_frame->GetActiveLayer();
     PCB_LAYER_ID savedLayer = layer;
 
-    if( ( layerSet & LSET( layer ) ).count() ) // if layer is a forbidden layer
+    if( ( layerSet & LSET( { layer } ) ).count() ) // if layer is a forbidden layer
     {
         m_frame->SetActiveLayer( Cmts_User );
         layer = Cmts_User;

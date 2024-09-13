@@ -49,6 +49,7 @@ public:
     BOARD_COMMIT( EDA_DRAW_FRAME* aFrame );
     BOARD_COMMIT( TOOL_BASE* aTool );
     BOARD_COMMIT( TOOL_MANAGER* aMgr );
+    BOARD_COMMIT( TOOL_MANAGER* aMgr, bool aIsBoardEditor );
 
     virtual ~BOARD_COMMIT() {}
 

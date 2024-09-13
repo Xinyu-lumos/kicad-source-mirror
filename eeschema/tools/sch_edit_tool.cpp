@@ -1418,6 +1418,10 @@ int SCH_EDIT_TOOL::RepeatDrawItem( const TOOL_EVENT& aEvent )
         EESCHEMA_SETTINGS* cfg = Pgm().GetSettingsManager().GetAppSettings<EESCHEMA_SETTINGS>();
         bool               restore_state = false;
 
+        // Ensure newItem has a suitable parent: the current screen, because an item from
+        // a list of items to repeat must be attached to this current screen
+        newItem->SetParent( m_frame->GetScreen() );
+
         if( SCH_LABEL_BASE* label = dynamic_cast<SCH_LABEL_BASE*>( newItem ) )
         {
             // If incrementing tries to go below zero, tell user why the value is repeated
@@ -1482,6 +1486,9 @@ int SCH_EDIT_TOOL::RepeatDrawItem( const TOOL_EVENT& aEvent )
                                           (ANNOTATE_ALGO_T) annotate.method, true /* recursive */,
                                           annotateStartNum, false, false, reporter );
             }
+
+            // Annotation clears the selection so re-add the item
+            m_toolMgr->RunAction<EDA_ITEM*>( EE_ACTIONS::addItemToSel, newItem );
 
             restore_state = !m_toolMgr->RunSynchronousAction( EE_ACTIONS::move, &commit );
         }
@@ -1746,7 +1753,8 @@ void SCH_EDIT_TOOL::editFieldText( SCH_FIELD* aField )
 
 int SCH_EDIT_TOOL::EditField( const TOOL_EVENT& aEvent )
 {
-    EE_SELECTION sel = m_selectionTool->RequestSelection( { SCH_FIELD_T, SCH_SYMBOL_T } );
+    EE_SELECTION sel =
+            m_selectionTool->RequestSelection( { SCH_FIELD_T, SCH_SYMBOL_T, SCH_PIN_T } );
 
     if( sel.Size() != 1 )
         return 0;
@@ -1794,6 +1802,27 @@ int SCH_EDIT_TOOL::EditField( const TOOL_EVENT& aEvent )
 
         if( !field->IsVisible() )
             clearSelection = true;
+    }
+    else if( item->Type() == SCH_PIN_T )
+    {
+        SCH_SYMBOL* symbol = dynamic_cast<SCH_SYMBOL*>( item->GetParent() );
+
+        if( symbol )
+        {
+            if( aEvent.IsAction( &EE_ACTIONS::editReference ) )
+            {
+                editFieldText( symbol->GetField( REFERENCE_FIELD ) );
+            }
+            else if( aEvent.IsAction( &EE_ACTIONS::editValue ) )
+            {
+                editFieldText( symbol->GetField( VALUE_FIELD ) );
+            }
+            else if( aEvent.IsAction( &EE_ACTIONS::editFootprint ) )
+            {
+                if( !symbol->IsPower() )
+                    editFieldText( symbol->GetField( FOOTPRINT_FIELD ) );
+            }
+        }
     }
 
     if( clearSelection )
@@ -2898,8 +2927,7 @@ int SCH_EDIT_TOOL::EditPageNumber( const TOOL_EVENT& aEvent )
 
 int SCH_EDIT_TOOL::DdAppendFile( const TOOL_EVENT& aEvent )
 {
-    wxString aFileName = *aEvent.Parameter<wxString*>();
-    return ( m_frame->AddSheetAndUpdateDisplay( aFileName ) ? 0 : 1 );
+    return m_toolMgr->RunAction( EE_ACTIONS::importSheet, aEvent.Parameter<wxString*>() );
 }
 
 

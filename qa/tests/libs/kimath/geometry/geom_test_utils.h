@@ -26,6 +26,7 @@
 
 #include <cmath>
 
+#include <geometry/point_types.h>
 #include <geometry/seg.h>
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_poly_set.h>
@@ -180,28 +181,6 @@ bool ArePerpendicular( const VECTOR2<T>& a, const VECTOR2<T>& b, const EDA_ANGLE
     return KI_TEST::IsWithin( angle.AsRadians(), ANGLE_90.AsRadians(), aTolerance.AsRadians() );
 }
 
-/**
- * @brief construct a square polygon of given size width and centre
- *
- * @param aSize: the side width (must be divisible by 2 if want to avoid rounding)
- * @param aCentre: the centre of the square
- */
-inline SHAPE_LINE_CHAIN MakeSquarePolyLine( int aSize, const VECTOR2I& aCentre )
-{
-    SHAPE_LINE_CHAIN polyLine;
-
-    const VECTOR2I corner = aCentre + aSize / 2;
-
-    polyLine.Append( VECTOR2I( corner.x, corner.y ) );
-    polyLine.Append( VECTOR2I( -corner.x, corner.y ) ) ;
-    polyLine.Append( VECTOR2I( -corner.x, -corner.y ) );
-    polyLine.Append( VECTOR2I( corner.x, -corner.y ) );
-
-    polyLine.SetClosed( true );
-
-    return polyLine;
-}
-
 /*
  * @brief Fillet every polygon in a set and return a new set
  */
@@ -347,26 +326,13 @@ inline bool SegmentsHaveSameEndPoints( const SEG& aSeg1, const SEG& aSeg2 )
 
 } // namespace GEOM_TEST
 
-namespace BOOST_TEST_PRINT_NAMESPACE_OPEN
-{
-template <>
-struct print_log_value<SHAPE_LINE_CHAIN>
-{
-    inline void operator()( std::ostream& os, const SHAPE_LINE_CHAIN& c )
-    {
-        os << "SHAPE_LINE_CHAIN: " << c.PointCount() << " points: [\n";
 
-        for( int i = 0; i < c.PointCount(); ++i )
-        {
-            os << "   " << i << ": " << c.CPoint( i ) << "\n";
-        }
+// Stream printing for geometry types
 
-        os << "]";
-    }
-};
+std::ostream& boost_test_print_type( std::ostream& os, const SHAPE_LINE_CHAIN& c );
 
-}
-BOOST_TEST_PRINT_NAMESPACE_CLOSE
-
+// Not clear why boost_test_print_type doesn't work on Debian specifically for this type,
+// but this works on all platforms
+std::ostream& operator<<( std::ostream& os, const TYPED_POINT2I& c );
 
 #endif // GEOM_TEST_UTILS_H

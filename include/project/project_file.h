@@ -31,6 +31,7 @@
 class BOARD_DESIGN_SETTINGS;
 class ERC_SETTINGS;
 class NET_SETTINGS;
+class LAYER_PAIR_SETTINGS;
 class SCHEMATIC_SETTINGS;
 class TEMPLATES;
 
@@ -122,6 +123,9 @@ public:
     /// The list of pinned footprint libraries
     std::vector<wxString> m_PinnedFootprintLibs;
 
+    /// The list of pinned design block libraries
+    std::vector<wxString> m_PinnedDesignBlockLibs;
+
     std::map<wxString, wxString> m_TextVars;
 
     /**
@@ -176,6 +180,7 @@ public:
     std::vector<LAYER_PRESET>     m_LayerPresets;   /// List of stored layer presets
     std::vector<VIEWPORT>         m_Viewports;      /// List of stored viewports (pos + zoom)
     std::vector<VIEWPORT3D>       m_Viewports3D;    /// List of stored 3D viewports (view matrixes)
+    std::vector<LAYER_PAIR_INFO>  m_LayerPairInfos; /// Layer pair list for the board
 
     struct IP2581_BOM             m_IP2581Bom;      /// IPC-2581 BOM settings
 

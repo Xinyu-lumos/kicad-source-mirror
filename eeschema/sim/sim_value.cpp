@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2022 Mikolaj Wielgus
- * Copyright (C) 2022-2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2022-2024 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,6 +29,7 @@
 #include <pegtl/contrib/parse_tree.hpp>
 #include <fmt/core.h>
 #include <math/util.h>
+#include <wx/regex.h>
 
 
 #define CALL_INSTANCE( ValueType, Notation, func, ... )                  \
@@ -412,6 +413,29 @@ std::string SIM_VALUE::Normalize( double aValue )
     double reducedValue = aValue / std::pow( 10, expReduction );
 
     return fmt::format( "{:g}{}", reducedValue, prefix );
+}
+
+
+std::string SIM_VALUE::ToSpice( const std::string& aString )
+{
+    // Notation conversion is very slow.  Avoid if possible.
+
+    auto plainNumber =
+            []( const std::string& aStringVal )
+            {
+                for( char c : aStringVal )
+                {
+                    if( c != '.' && ( c < '0' || c > '9' )  )
+                        return false;
+                }
+
+                return true;
+            };
+
+    if( plainNumber( aString ) )
+        return aString;
+    else
+        return ConvertNotation( aString, NOTATION::SI, NOTATION::SPICE );
 }
 
 

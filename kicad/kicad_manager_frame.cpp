@@ -198,15 +198,13 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
     setupTools();
     setupUIConditions();
 
-    m_launcher = new PANEL_KICAD_LAUNCHER( this );
-
-    RecreateBaseHToolbar();
+    RecreateBaseLeftToolbar();
     ReCreateMenuBar();
 
     m_auimgr.SetManagedWindow( this );
     m_auimgr.SetFlags( wxAUI_MGR_LIVE_RESIZE );
 
-    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Left()
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().VToolbar().Name( "MainToolbar" ).Left()
                       .Layer( 2 ) );
 
     // BestSize() does not always set the actual pane size of m_leftWin to the required value.
@@ -218,9 +216,30 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
                       .Caption( _( "Project Files" ) ).PaneBorder( false )
                       .MinSize( m_leftWinWidth, -1 ).BestSize( m_leftWinWidth, -1 ) );
 
-    m_auimgr.AddPane( m_launcher, EDA_PANE().Canvas().Name( "Launcher" ).Center()
-                      .Caption( _( "Editors" ) ).PaneBorder( false )
-                      .MinSize( m_launcher->GetBestSize() ) );
+    wxSize client_size = GetClientSize();
+    m_notebook = new wxAuiNotebook( this, wxID_ANY, wxPoint( client_size.x, client_size.y ),
+                                    FromDIP( wxSize( 430, 200 ) ),
+                                    wxAUI_NB_TOP | wxAUI_NB_CLOSE_ON_ALL_TABS | wxAUI_NB_TAB_MOVE
+                                            | wxAUI_NB_SCROLL_BUTTONS | wxNO_BORDER );
+
+    m_notebook->Connect(
+            wxEVT_AUINOTEBOOK_PAGE_CLOSE,
+            wxAuiNotebookEventHandler( KICAD_MANAGER_FRAME::onNotebookPageCloseRequest ), nullptr,
+            this );
+    m_launcher = new PANEL_KICAD_LAUNCHER( m_notebook );
+
+    m_notebook->Freeze();
+    m_launcher->SetClosable( false );
+    m_notebook->AddPage( m_launcher, "Editors", false );
+    m_notebook->Thaw();
+
+    m_auimgr.AddPane( m_notebook, EDA_PANE()
+                                          .Canvas()
+                                          .Name( "Editors" )
+                                          .Center()
+                                          .Caption( _( "Editors" ) )
+                                          .PaneBorder( false )
+                                          .MinSize( m_notebook->GetBestSize() ) );
 
     m_auimgr.Update();
 
@@ -260,6 +279,14 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
 
 KICAD_MANAGER_FRAME::~KICAD_MANAGER_FRAME()
 {
+    Unbind( wxEVT_CHAR, &TOOL_DISPATCHER::DispatchWxEvent, m_toolDispatcher );
+    Unbind( wxEVT_CHAR_HOOK, &TOOL_DISPATCHER::DispatchWxEvent, m_toolDispatcher );
+
+    m_notebook->Disconnect(
+            wxEVT_AUINOTEBOOK_PAGE_CLOSE,
+            wxAuiNotebookEventHandler( KICAD_MANAGER_FRAME::onNotebookPageCloseRequest ), nullptr,
+            this );
+
     Pgm().GetBackgroundJobMonitor().UnregisterStatusBar( (KISTATUSBAR*) GetStatusBar() );
     Pgm().GetNotificationsManager().UnregisterStatusBar( (KISTATUSBAR*) GetStatusBar() );
 
@@ -275,6 +302,31 @@ KICAD_MANAGER_FRAME::~KICAD_MANAGER_FRAME()
     delete m_toolDispatcher;
 
     m_auimgr.UnInit();
+}
+
+
+void KICAD_MANAGER_FRAME::onNotebookPageCloseRequest( wxAuiNotebookEvent& evt )
+{
+    wxAuiNotebook* ctrl = (wxAuiNotebook*) evt.GetEventObject();
+
+    wxWindow* pageWindow = ctrl->GetPage( evt.GetSelection() );
+
+    PANEL_NOTEBOOK_BASE* panel = dynamic_cast<PANEL_NOTEBOOK_BASE*>( pageWindow );
+
+    if( panel )
+    {
+        if( panel->GetClosable() )
+        {
+            if( !panel->GetCanClose() )
+            {
+                evt.Veto();
+            }
+        }
+        else
+        {
+            evt.Veto();
+        }
+    }
 }
 
 
@@ -534,6 +586,18 @@ bool KICAD_MANAGER_FRAME::canCloseWindow( wxCloseEvent& aEvent )
     KICAD_SETTINGS* settings = kicadSettings();
     settings->m_OpenProjects = GetSettingsManager()->GetOpenProjects();
 
+    for( size_t i = 0; i < m_notebook->GetPageCount(); i++ )
+    {
+        wxWindow* page = m_notebook->GetPage( i );
+
+        PANEL_NOTEBOOK_BASE* panel = dynamic_cast<PANEL_NOTEBOOK_BASE*>( page );
+        if( panel )
+        {
+            if( !panel->GetCanClose() )
+                return false;
+        }
+    }
+
     // CloseProject will recursively ask all the open editors if they need to save changes.
     // If any of them cancel then we need to cancel closing the KICAD_MANAGER_FRAME.
     if( CloseProject( true ) )
@@ -570,6 +634,17 @@ void KICAD_MANAGER_FRAME::doCloseWindow()
         return;
     }
 #endif
+
+    for( size_t i = 0; i < m_notebook->GetPageCount(); i++ )
+    {
+        wxWindow* page = m_notebook->GetPage( i );
+
+        PANEL_NOTEBOOK_BASE* panel = dynamic_cast<PANEL_NOTEBOOK_BASE*>( page );
+        if( panel )
+        {
+            m_notebook->DeletePage( i );
+        }
+    }
 
     m_leftWin->Show( false );
     Pgm().m_Quitting = true;
@@ -608,6 +683,20 @@ bool KICAD_MANAGER_FRAME::CloseProject( bool aSave )
     }
 
     SetStatusText( "" );
+
+    for( size_t i = 0; i < m_notebook->GetPageCount(); i++ )
+    {
+        wxWindow* page = m_notebook->GetPage( i );
+
+        PANEL_NOTEBOOK_BASE* panel = dynamic_cast<PANEL_NOTEBOOK_BASE*>( page );
+        if( panel )
+        {
+            if( panel->GetProjectTied() )
+            {
+                m_notebook->DeletePage( i );
+            }
+        }
+    }
 
     m_leftWin->EmptyTreePrj();
 
@@ -795,7 +884,7 @@ void KICAD_MANAGER_FRAME::ShowChangedLanguage()
     EDA_BASE_FRAME::ShowChangedLanguage();
 
     // tooltips in toolbars
-    RecreateBaseHToolbar();
+    RecreateBaseLeftToolbar();
     m_launcher->CreateLaunchers();
 
     PrintPrjInfo();
@@ -1018,7 +1107,7 @@ void KICAD_MANAGER_FRAME::onToolbarSizeChanged()
     m_auimgr.DetachPane( m_mainToolBar );
     delete m_mainToolBar;
     m_mainToolBar = nullptr;
-    RecreateBaseHToolbar();
+    RecreateBaseLeftToolbar();
     m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Left()
                       .Layer( 2 ) );
 }

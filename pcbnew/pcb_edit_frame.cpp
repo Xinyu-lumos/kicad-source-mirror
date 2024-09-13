@@ -46,6 +46,7 @@
 #include <board.h>
 #include <board_design_settings.h>
 #include <footprint.h>
+#include <layer_pairs.h>
 #include <drawing_sheet/ds_proxy_view_item.h>
 #include <connectivity/connectivity_data.h>
 #include <wildcards_and_files_ext.h>
@@ -66,6 +67,7 @@
 #include <tool/properties_tool.h>
 #include <tool/selection.h>
 #include <tool/zoom_tool.h>
+#include <tools/pcb_grid_helper.h>
 #include <tools/pcb_selection_tool.h>
 #include <tools/pcb_picker_tool.h>
 #include <tools/pcb_point_editor.h>
@@ -89,6 +91,7 @@
 #include <tools/position_relative_tool.h>
 #include <tools/zone_filler_tool.h>
 #include <tools/pcb_actions.h>
+#include <tools/multichannel_tool.h>
 #include <router/router_tool.h>
 #include <autorouter/autoplace_tool.h>
 #include <python/scripting/pcb_scripting_tool.h>
@@ -395,6 +398,30 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
         m_appearancePanel->SetTabIndex( settings->m_AuiPanels.appearance_panel_tab );
     }
 
+    {
+        m_layerPairSettings = std::make_unique<LAYER_PAIR_SETTINGS>();
+
+        m_layerPairSettings->Bind( PCB_LAYER_PAIR_PRESETS_CHANGED, [&]( wxCommandEvent& aEvt )
+        {
+            // Update the project file list
+            std::span<const LAYER_PAIR_INFO> newPairInfos = m_layerPairSettings->GetLayerPairs();
+            Prj().GetProjectFile().m_LayerPairInfos =
+                    std::vector<LAYER_PAIR_INFO>{ newPairInfos.begin(), newPairInfos.end() };
+        });
+
+        m_layerPairSettings->Bind( PCB_CURRENT_LAYER_PAIR_CHANGED, [&]( wxCommandEvent& aEvt )
+        {
+            const LAYER_PAIR& layerPair = m_layerPairSettings->GetCurrentLayerPair();
+            PCB_SCREEN& screen = *GetScreen();
+
+            screen.m_Route_Layer_TOP = layerPair.GetLayerA();
+            screen.m_Route_Layer_BOTTOM = layerPair.GetLayerB();
+
+            // Update the toolbar icon
+            PrepareLayerIndicator();
+        });
+    }
+
     GetToolManager()->PostAction( ACTIONS::zoomFitScreen );
 
     // This is used temporarily to fix a client size issue on GTK that causes zoom to fit
@@ -584,6 +611,12 @@ BOARD_ITEM_CONTAINER* PCB_EDIT_FRAME::GetModel() const
 }
 
 
+std::unique_ptr<GRID_HELPER> PCB_EDIT_FRAME::MakeGridHelper()
+{
+    return std::make_unique<PCB_GRID_HELPER>( m_toolManager, GetMagneticItemsSettings() );
+}
+
+
 void PCB_EDIT_FRAME::redrawNetnames()
 {
     /*
@@ -706,6 +739,7 @@ void PCB_EDIT_FRAME::setupTools()
     m_toolManager->RegisterTool( new GENERATOR_TOOL );
     m_toolManager->RegisterTool( new SCRIPTING_TOOL );
     m_toolManager->RegisterTool( new PROPERTIES_TOOL );
+    m_toolManager->RegisterTool( new MULTICHANNEL_TOOL );
     m_toolManager->RegisterTool( new EMBED_TOOL );
     m_toolManager->InitTools();
 
@@ -1279,11 +1313,12 @@ void PCB_EDIT_FRAME::ShowBoardSetupDialog( const wxString& aInitialPage )
         GetCanvas()->GetView()->UpdateAllItemsConditionally(
                 [&]( KIGFX::VIEW_ITEM* aItem ) -> int
                 {
-                    BOARD_ITEM* item = dynamic_cast<BOARD_ITEM*>( aItem );
-                    int         flags = 0;
+                    int flags = 0;
 
-                    if( !item )
+                    if( !aItem->IsBOARD_ITEM() )
                         return flags;
+
+                    BOARD_ITEM* item = static_cast<BOARD_ITEM*>( aItem );
 
                     if( item->Type() == PCB_VIA_T || item->Type() == PCB_PAD_T )
                     {
@@ -1434,10 +1469,10 @@ void PCB_EDIT_FRAME::SetActiveLayer( PCB_LAYER_ID aLayer )
     GetCanvas()->GetView()->UpdateAllItemsConditionally(
             [&]( KIGFX::VIEW_ITEM* aItem ) -> int
             {
-                BOARD_ITEM* item = dynamic_cast<BOARD_ITEM*>( aItem );
-
-                if( !item )
+                if( !aItem->IsBOARD_ITEM() )
                     return 0;
+
+                BOARD_ITEM* item = static_cast<BOARD_ITEM*>( aItem );
 
                 // Note: KIGFX::REPAINT isn't enough for things that go from invisible to visible
                 // as they won't be found in the view layer's itemset for re-painting.
@@ -1574,6 +1609,11 @@ void PCB_EDIT_FRAME::onBoardLoaded()
     if( GetBoard()->GetDesignSettings().IsLayerEnabled( localSettings.m_ActiveLayer ) )
         SetActiveLayer( localSettings.m_ActiveLayer );
 
+    PROJECT_FILE& projectFile = Prj().GetProjectFile();
+
+    m_layerPairSettings->SetLayerPairs( projectFile.m_LayerPairInfos );
+    m_layerPairSettings->SetCurrentLayerPair( LAYER_PAIR{ F_Cu, B_Cu } );
+
     // Updates any auto dimensions and the auxiliary toolbar tracks/via sizes
     unitsChangeRefresh();
 
@@ -1683,6 +1723,14 @@ void PCB_EDIT_FRAME::OnModify()
 void PCB_EDIT_FRAME::HardRedraw()
 {
     Update3DView( true, true );
+
+    std::shared_ptr<CONNECTIVITY_DATA> connectivity = GetBoard()->GetConnectivity();
+    connectivity->RecalculateRatsnest( nullptr );
+    GetCanvas()->RedrawRatsnest();
+
+    std::vector<MSG_PANEL_ITEM> msg_list;
+    GetBoard()->GetMsgPanelInfo( this, msg_list );
+    SetMsgPanel( msg_list );
 }
 
 

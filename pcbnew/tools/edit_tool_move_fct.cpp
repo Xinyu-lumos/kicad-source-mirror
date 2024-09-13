@@ -97,10 +97,14 @@ int EDIT_TOOL::Swap( const TOOL_EVENT& aEvent )
 
     for( size_t i = 0; i < sorted.size() - 1; i++ )
     {
-        BOARD_ITEM* a = dynamic_cast<BOARD_ITEM*>( sorted[i] );
-        BOARD_ITEM* b = dynamic_cast<BOARD_ITEM*>( sorted[( i + 1 ) % sorted.size()] );
+        EDA_ITEM* edaItemA = sorted[i];
+        EDA_ITEM* edaItemB = sorted[( i + 1 ) % sorted.size()];
 
-        wxCHECK2( a && b, continue );
+        if( !edaItemA->IsBOARD_ITEM() || !edaItemB->IsBOARD_ITEM() )
+            continue;
+
+        BOARD_ITEM* a = static_cast<BOARD_ITEM*>( edaItemA );
+        BOARD_ITEM* b = static_cast<BOARD_ITEM*>( edaItemB );
 
         // Swap X,Y position
         VECTOR2I aPos = a->GetPosition(), bPos = b->GetPosition();
@@ -282,8 +286,8 @@ VECTOR2I EDIT_TOOL::getSafeMovement( const VECTOR2I& aMovement, const BOX2I& aSo
 
 bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit, bool aAutoStart )
 {
-    bool moveWithReference = aEvent.IsAction( &PCB_ACTIONS::moveWithReference );
-    bool moveIndividually = aEvent.IsAction( &PCB_ACTIONS::moveIndividually );
+    const bool moveWithReference = aEvent.IsAction( &PCB_ACTIONS::moveWithReference );
+    const bool moveIndividually = aEvent.IsAction( &PCB_ACTIONS::moveIndividually );
 
     PCB_BASE_EDIT_FRAME*               editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
     PCBNEW_SETTINGS*                   cfg = editFrame->GetPcbNewSettings();
@@ -358,16 +362,20 @@ bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit
 
     for( EDA_ITEM* item : selection )
     {
-        if( BOARD_ITEM* boardItem = dynamic_cast<BOARD_ITEM*>( item ) )
+        if( item->IsBOARD_ITEM() )
         {
+            BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( item );
+
             if( !selection.IsHover() )
                 orig_items.push_back( boardItem );
 
             sel_items.push_back( boardItem );
         }
 
-        if( FOOTPRINT* footprint = dynamic_cast<FOOTPRINT*>( item ) )
+        if( item->Type() == PCB_FOOTPRINT_T )
         {
+            FOOTPRINT* footprint = static_cast<FOOTPRINT*>( item );
+
             for( PAD* pad : footprint->Pads() )
                 sel_items.push_back( pad );
 
@@ -395,8 +403,8 @@ bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit
 
         for( EDA_ITEM* item : selection.GetItemsSortedBySelectionOrder() )
         {
-            if( BOARD_ITEM* boardItem = dynamic_cast<BOARD_ITEM*>( item ) )
-                orig_items.push_back( boardItem );
+            if( item->IsBOARD_ITEM() )
+                orig_items.push_back( static_cast<BOARD_ITEM*>( item ) );
         }
 
         updateStatusPopup( orig_items[ itemIdx ], itemIdx + 1, orig_items.size() );
@@ -416,7 +424,7 @@ bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit
     VECTOR2D        bboxMovement;
     BOX2I           originalBBox;
     bool            updateBBox = true;
-    LSET            layers( editFrame->GetActiveLayer() );
+    LSET            layers( { editFrame->GetActiveLayer() } );
     PCB_GRID_HELPER grid( m_toolMgr, editFrame->GetMagneticItemsSettings() );
     TOOL_EVENT      copy = aEvent;
     TOOL_EVENT*     evt = &copy;

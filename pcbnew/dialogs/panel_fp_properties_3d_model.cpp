@@ -58,6 +58,8 @@ enum MODELS_TABLE_COLUMNS
     COL_SHOWN    = 2
 };
 
+wxDEFINE_EVENT( wxCUSTOM_PANEL_SHOWN_EVENT, wxCommandEvent );
+
 PANEL_FP_PROPERTIES_3D_MODEL::PANEL_FP_PROPERTIES_3D_MODEL( PCB_BASE_EDIT_FRAME* aFrame,
                                                             FOOTPRINT* aFootprint,
                                                             DIALOG_SHIM* aDialogParent,
@@ -121,6 +123,10 @@ PANEL_FP_PROPERTIES_3D_MODEL::PANEL_FP_PROPERTIES_3D_MODEL( PCB_BASE_EDIT_FRAME*
     m_button3DShapeAdd->SetBitmap( KiBitmapBundle( BITMAPS::small_plus ) );
     m_button3DShapeBrowse->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
     m_button3DShapeRemove->SetBitmap( KiBitmapBundle( BITMAPS::small_trash ) );
+
+    Bind( wxEVT_SHOW, &PANEL_FP_PROPERTIES_3D_MODEL::onShowEvent, this );
+    m_parentDialog->Bind( wxEVT_ACTIVATE, &PANEL_FP_PROPERTIES_3D_MODEL::onDialogActivateEvent,
+                          this );
 }
 
 
@@ -128,6 +134,9 @@ PANEL_FP_PROPERTIES_3D_MODEL::~PANEL_FP_PROPERTIES_3D_MODEL()
 {
     // Delete the GRID_TRICKS.
     m_modelsGrid->PopEventHandler( true );
+
+    // Unbind OnShowEvent to prevent unnecessary event handling.
+    Unbind( wxEVT_SHOW, &PANEL_FP_PROPERTIES_3D_MODEL::onShowEvent, this );
 
     // free the memory used by all models, otherwise models which were
     // browsed but not used would consume memory
@@ -142,6 +151,7 @@ bool PANEL_FP_PROPERTIES_3D_MODEL::TransferDataToWindow()
     ReloadModelsFromFootprint();
     return true;
 }
+
 
 bool PANEL_FP_PROPERTIES_3D_MODEL::TransferDataFromWindow()
 {
@@ -273,6 +283,7 @@ void PANEL_FP_PROPERTIES_3D_MODEL::On3DModelCellChanged( wxGridEvent& aEvent )
     }
 
     m_previewPane->UpdateDummyFootprint();
+    onModify();
 }
 
 
@@ -295,6 +306,8 @@ void PANEL_FP_PROPERTIES_3D_MODEL::OnRemove3DModel( wxCommandEvent&  )
         select3DModel( idx );       // will clamp idx within bounds
         m_previewPane->UpdateDummyFootprint();
     }
+
+    onModify();
 }
 
 
@@ -416,6 +429,7 @@ void PANEL_FP_PROPERTIES_3D_MODEL::OnAdd3DModel( wxCommandEvent&  )
     updateValidateStatus( idx );
 
     m_previewPane->UpdateDummyFootprint();
+    onModify();
 }
 
 
@@ -444,6 +458,7 @@ void PANEL_FP_PROPERTIES_3D_MODEL::OnAdd3DRow( wxCommandEvent&  )
     m_modelsGrid->ShowCellEditControl();
 
     updateValidateStatus( row );
+    onModify();
 }
 
 
@@ -566,4 +581,35 @@ void PANEL_FP_PROPERTIES_3D_MODEL::OnGridSize( wxSizeEvent& event )
 void PANEL_FP_PROPERTIES_3D_MODEL::OnUpdateUI( wxUpdateUIEvent& event )
 {
     m_button3DShapeRemove->Enable( m_modelsGrid->GetNumberRows() > 0 );
+}
+
+
+void PANEL_FP_PROPERTIES_3D_MODEL::onModify()
+{
+    if( DIALOG_SHIM* dlg = dynamic_cast<DIALOG_SHIM*>( wxGetTopLevelParent( this ) ) )
+        dlg->OnModify();
+}
+
+
+void PANEL_FP_PROPERTIES_3D_MODEL::onShowEvent( wxShowEvent& aEvent )
+{
+    postCustomPanelShownEventWithPredicate( static_cast<int>( aEvent.IsShown() ) );
+    aEvent.Skip();
+}
+
+
+void PANEL_FP_PROPERTIES_3D_MODEL::onDialogActivateEvent( wxActivateEvent& aEvent )
+{
+    postCustomPanelShownEventWithPredicate( aEvent.GetActive()
+                                            && m_previewPane->IsShownOnScreen() );
+    aEvent.Skip();
+}
+
+
+void PANEL_FP_PROPERTIES_3D_MODEL::postCustomPanelShownEventWithPredicate( bool predicate )
+{
+    wxCommandEvent event( wxCUSTOM_PANEL_SHOWN_EVENT );
+    event.SetEventObject( m_previewPane );
+    event.SetInt( static_cast<int>( predicate ) );
+    m_previewPane->ProcessWindowEvent( event );
 }

@@ -147,6 +147,10 @@ static const std::map<int, COLOR4D> s_defaultTheme =
             { GERBVIEW_LAYER_ID_START + 57, CSS_COLOR( 127, 200, 127, 1 ) },
             { GERBVIEW_LAYER_ID_START + 58, CSS_COLOR( 206, 125, 44,  1 ) },
             { GERBVIEW_LAYER_ID_START + 59, CSS_COLOR( 79,  203, 203, 1 ) },
+            { GERBVIEW_LAYER_ID_START + 60, CSS_COLOR( 219, 98, 139,  1 ) },
+            { GERBVIEW_LAYER_ID_START + 61, CSS_COLOR( 167, 165, 198, 1 ) },
+            { GERBVIEW_LAYER_ID_START + 62, CSS_COLOR( 40,  204, 217, 1 ) },
+            { GERBVIEW_LAYER_ID_START + 63, CSS_COLOR( 232, 178, 167, 1 ) },
 
             { LAYER_ANCHOR,                 CSS_COLOR( 255, 38,  226, 1 ) },
             { LAYER_LOCKED_ITEM_SHADOW,     CSS_COLOR( 255, 38,  226, 0.5 ) },
@@ -171,6 +175,9 @@ static const std::map<int, COLOR4D> s_defaultTheme =
             { LAYER_VIA_MICROVIA,           CSS_COLOR( 0,   132, 132, 1 ) },
             { LAYER_DRAWINGSHEET,           CSS_COLOR( 200, 114, 171, 1 ) },
             { LAYER_PAGE_LIMITS,            CSS_COLOR( 132, 132, 132, 1 ) },
+            { NETNAMES_LAYER_ID_START,      CSS_COLOR( 255, 255, 255, 0.7 ) },
+            { LAYER_PAD_NETNAMES,           CSS_COLOR( 255, 255, 255, 0.9 ) },
+            { LAYER_VIA_NETNAMES,           CSS_COLOR( 51, 51, 51, 0.9 ) },
 
             { F_Cu,                         CSS_COLOR( 200, 52,  52,  1 ) },
             { In1_Cu,                       CSS_COLOR( 127, 200, 127, 1 ) },
@@ -390,6 +397,9 @@ static const std::map<int, COLOR4D> s_classicTheme =
             { LAYER_VIA_MICROVIA,           COLOR4D( CYAN ) },
             { LAYER_DRAWINGSHEET,           COLOR4D( DARKRED ) },
             { LAYER_PAGE_LIMITS,            COLOR4D( DARKGRAY) },
+            { NETNAMES_LAYER_ID_START,      CSS_COLOR( 255, 255, 255, 0.7 ) },
+            { LAYER_PAD_NETNAMES,           CSS_COLOR( 255, 255, 255, 0.9 ) },
+            { LAYER_VIA_NETNAMES,           CSS_COLOR( 51, 51, 51, 0.9 ) },
 
             { F_Cu,                         COLOR4D( RED ) },
             { In1_Cu,                       COLOR4D( YELLOW ) },

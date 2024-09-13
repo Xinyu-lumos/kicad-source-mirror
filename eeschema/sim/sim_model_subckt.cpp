@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2022 Mikolaj Wielgus
- * Copyright (C) 2022 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2022-2024 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -151,8 +151,8 @@ void SIM_MODEL_SUBCKT::SetBaseModel( const SIM_MODEL& aBaseModel )
         AddPin( pin );
 
     // Same for parameters.
-    for( const PARAM& param : GetBaseModel()->GetParams() )
-        AddParam( param.info );
+    for( int ii = 0; ii < GetBaseModel()->GetParamCount(); ++ii )
+        AddParam( GetBaseModel()->GetParam( ii ).info );
 }
 
 

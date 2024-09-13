@@ -99,6 +99,10 @@ public:
         Add( PCB_ACTIONS::zoneDuplicate );
         Add( PCB_ACTIONS::drawZoneCutout );
         Add( PCB_ACTIONS::drawSimilarZone );
+
+        AppendSeparator();
+
+        Add( PCB_ACTIONS::zonesManager );
     }
 
 protected:
@@ -180,7 +184,7 @@ bool BOARD_EDITOR_CONTROL::Init()
                 return m_frame->IsCurrentTool( PCB_ACTIONS::placeFootprint ) && aSel.GetSize() == 0;
             };
 
-    auto& ctxMenu = m_menu.GetMenu();
+    auto& ctxMenu = m_menu->GetMenu();
 
     // "Cancel" goes at the top of the context menu when a tool is active
     ctxMenu.AddItem( ACTIONS::cancelInteractive, activeToolCondition, 1 );
@@ -191,7 +195,7 @@ bool BOARD_EDITOR_CONTROL::Init()
     ctxMenu.AddSeparator( 1000 );
 
     // Finally, add the standard zoom & grid items
-    getEditFrame<PCB_BASE_FRAME>()->AddStandardSubMenus( m_menu );
+    getEditFrame<PCB_BASE_FRAME>()->AddStandardSubMenus( *m_menu.get() );
 
     std::shared_ptr<ZONE_CONTEXT_MENU> zoneMenu = std::make_shared<ZONE_CONTEXT_MENU>();
     zoneMenu->SetTool( this );
@@ -1168,14 +1172,14 @@ int BOARD_EDITOR_CONTROL::PlaceFootprint( const TOOL_EVENT& aEvent )
             else
             {
                 m_toolMgr->RunAction( PCB_ACTIONS::selectionClear );
-                commit.Push( _( "Place a Footprint" ) );
+                commit.Push( _( "Place Footprint" ) );
                 fp = nullptr;  // to indicate that there is no footprint that we currently modify
                 m_placingFootprint = false;
             }
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
-            m_menu.ShowContextMenu(  selection()  );
+            m_menu->ShowContextMenu(  selection()  );
         }
         else if( fp && ( evt->IsMotion() || evt->IsAction( &ACTIONS::refreshPreview ) ) )
         {
@@ -1246,9 +1250,10 @@ int BOARD_EDITOR_CONTROL::modifyLockSelected( MODIFY_MODE aMode )
 
         for( EDA_ITEM* item : selection )
         {
-            BOARD_ITEM* board_item = dynamic_cast<BOARD_ITEM*>( item );
+            if( !item->IsBOARD_ITEM() )
+                continue;
 
-            if( board_item && board_item->IsLocked() )
+            if( static_cast<BOARD_ITEM*>( item )->IsLocked() )
             {
                 aMode = OFF;
                 break;
@@ -1258,19 +1263,25 @@ int BOARD_EDITOR_CONTROL::modifyLockSelected( MODIFY_MODE aMode )
 
     for( EDA_ITEM* item : selection )
     {
-        BOARD_ITEM* board_item = dynamic_cast<BOARD_ITEM*>( item );
-        wxCHECK2( board_item, continue );
+        if( !item->IsBOARD_ITEM() )
+            continue;
 
-        PCB_GENERATOR* generator = dynamic_cast<PCB_GENERATOR*>( board_item->GetParentGroup() );
+        BOARD_ITEM* board_item = static_cast<BOARD_ITEM*>( item );
+        PCB_GROUP*  parent_group = board_item->GetParentGroup();
 
-        if( generator && commit.GetStatus( generator ) != CHT_MODIFY )
+        if( parent_group && parent_group->Type() == PCB_GENERATOR_T )
         {
-            commit.Modify( generator );
+            PCB_GENERATOR* generator = static_cast<PCB_GENERATOR*>( parent_group );
 
-            if( aMode == ON )
-                generator->SetLocked( true );
-            else
-                generator->SetLocked( false );
+            if( generator && commit.GetStatus( generator ) != CHT_MODIFY )
+            {
+                commit.Modify( generator );
+
+                if( aMode == ON )
+                    generator->SetLocked( true );
+                else
+                    generator->SetLocked( false );
+            }
         }
 
         commit.Modify( board_item );

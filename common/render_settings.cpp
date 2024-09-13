@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2020 KiCad Developers, see AUTHORS.TXT for contributors.
+ * Copyright (C) 2024 KiCad Developers, see AUTHORS.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -55,9 +55,12 @@ RENDER_SETTINGS::~RENDER_SETTINGS()
 
 
 #if 0
-constexpr double correction = 0.8;      // Looks best visually
+constexpr double correction = 0.8;  // Looks best visually
 #else
-constexpr double correction = 1.0;      // Matches ISO 128-2
+constexpr double correction = 1.0;  // Matches ISO 128-2, but can creates issues on GTK and MSW:
+                                    // "dots" are not always visible depending on the zoom level
+                                    // because they create 0 lenght lines
+                                    // So they will drawn as segments, even with correction = 1.0
 #endif
 
 
@@ -69,7 +72,9 @@ double RENDER_SETTINGS::GetDashLength( int aLineWidth ) const
 
 double RENDER_SETTINGS::GetDotLength( int aLineWidth ) const
 {
-    return ( 1.0 - correction ) * aLineWidth;
+    // The minimal length scale is arbitrary set to 0.2 after trials
+    // 0 lenght can create drawing issues
+    return std::max( ( 1.0 - correction ), 0.2 ) * aLineWidth;
 }
 
 

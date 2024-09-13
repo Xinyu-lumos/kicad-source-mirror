@@ -24,13 +24,18 @@
 #ifndef GRID_HELPER_H
 #define GRID_HELPER_H
 
-#include "tool/selection.h"
-#include <tool/tool_manager.h>
 #include <vector>
+
+#include <geometry/point_types.h>
 #include <math/vector2d.h>
+#include <preview_items/anchor_debug.h>
+#include <preview_items/snap_indicator.h>
+#include <preview_items/construction_geom.h>
+#include <tool/construction_manager.h>
+#include <tool/tool_manager.h>
+#include <tool/selection.h>
 #include <origin_viewitem.h>
 
-class TOOL_MANAGER;
 class EDA_ITEM;
 
 enum GRID_HELPER_GRIDS : int
@@ -48,7 +53,7 @@ enum GRID_HELPER_GRIDS : int
 class GRID_HELPER
 {
 public:
-    GRID_HELPER( TOOL_MANAGER* aToolMgr );
+    GRID_HELPER( TOOL_MANAGER* aToolMgr, int aConstructionLayer );
     virtual ~GRID_HELPER();
 
     VECTOR2I GetGrid() const;
@@ -115,46 +120,75 @@ public:
     void SetMaskFlag( int aFlag ) { m_maskTypes |= aFlag; }
     void ClearMaskFlag( int aFlag ) { m_maskTypes = m_maskTypes & ~aFlag; }
 
-    enum ANCHOR_FLAGS {
+    std::optional<VECTOR2I> GetSnappedPoint() const;
+
+    enum ANCHOR_FLAGS
+    {
         CORNER = 1,
         OUTLINE = 2,
         SNAPPABLE = 4,
         ORIGIN = 8,
         VERTICAL = 16,
         HORIZONTAL = 32,
-        ALL = CORNER | OUTLINE | SNAPPABLE | ORIGIN | VERTICAL | HORIZONTAL
+        // This anchor comes from 'constructed' geometry (e.g. an intersection
+        // with something else), and not from some intrinsic point of an item
+        // (e.g. an endpoint)
+        CONSTRUCTED = 64,
+        ALL = CORNER | OUTLINE | SNAPPABLE | ORIGIN | VERTICAL | HORIZONTAL | CONSTRUCTED
     };
 
 protected:
 
     struct ANCHOR
     {
-        ANCHOR( const VECTOR2I& aPos, int aFlags = CORNER | SNAPPABLE, EDA_ITEM* aItem = nullptr ) :
-            pos( aPos ),
-            flags( aFlags ),
-            item( aItem )
-        { };
+        /**
+         *
+         * @param aPos The position of the anchor
+         * @param aFlags The flags for the anchor - this is a bitfield of ANCHOR_FLAGS,
+         *               specifying the type of anchor (which may be used to filter out
+         *               unwanted anchors per the settings)
+         * @param aPointTypes The point types that this anchor represents in geometric terms
+         * @param aItem The item to which the anchor belongs
+         */
+        ANCHOR( const VECTOR2I& aPos, int aFlags, int aPointTypes, std::vector<EDA_ITEM*> aItems ) :
+                pos( aPos ), flags( aFlags ), pointTypes( aPointTypes ),
+                items( std::move( aItems ) )
+        {
+        }
 
         VECTOR2I  pos;
         int       flags;
-        EDA_ITEM* item;
+        int       pointTypes;
+        // Items that are associated with this anchor (can be more than one, e.g. for an intersection)
+        std::vector<EDA_ITEM*> items;
 
         double Distance( const VECTOR2I& aP ) const
         {
             return VECTOR2D( (double) aP.x - pos.x, (double) aP.y - pos.y ).EuclideanNorm();
         }
+
+        bool InvolvesItem( const EDA_ITEM& aItem ) const
+        {
+            return std::find( items.begin(), items.end(), &aItem ) != items.end();
+        }
     };
 
-    void addAnchor( const VECTOR2I& aPos, int aFlags, EDA_ITEM* aItem )
+    void addAnchor( const VECTOR2I& aPos, int aFlags, EDA_ITEM* aItem,
+                    int aPointTypes = POINT_TYPE::PT_NONE )
+    {
+        addAnchor( aPos, aFlags, std::vector<EDA_ITEM*>{ aItem }, aPointTypes );
+    }
+
+    void addAnchor( const VECTOR2I& aPos, int aFlags, std::vector<EDA_ITEM*> aItems,
+                    int aPointTypes )
     {
         if( ( aFlags & m_maskTypes ) == aFlags )
-            m_anchors.emplace_back( ANCHOR( aPos, aFlags, aItem ) );
+            m_anchors.emplace_back( ANCHOR( aPos, aFlags, aPointTypes, std::move( aItems ) ) );
     }
 
     void clearAnchors()
     {
         m_anchors.clear();
-        m_snapItem = nullptr;
     }
 
     /**
@@ -167,6 +201,19 @@ protected:
                              const VECTOR2I& aOffset ) const;
 
 protected:
+    void showConstructionGeometry( bool aShow );
+
+    CONSTRUCTION_MANAGER& getConstructionManager() { return m_constructionManager; }
+
+    void updateSnapPoint( const TYPED_POINT2I& aPoint );
+
+    /**
+     * Enable the anchor debug if permitted and return it
+     *
+     * Returns nullptr if not permitted by the advancd config
+     */
+    KIGFX::ANCHOR_DEBUG* enableAndGetAnchorDebug();
+
     std::vector<ANCHOR>     m_anchors;
 
     TOOL_MANAGER*           m_toolMgr;
@@ -177,13 +224,25 @@ protected:
     bool                    m_enableSnap;     // Allow snapping to other items on the layers
     bool                    m_enableGrid;     // If true, allow snapping to grid
     bool                    m_enableSnapLine; // Allow drawing lines from snap points
-    ANCHOR*                 m_snapItem;       // Pointer to the currently snapped item in m_anchors
+    std::optional<ANCHOR>   m_snapItem;       // Pointer to the currently snapped item in m_anchors
                                               //   (NULL if not snapped)
     VECTOR2I                m_skipPoint;      // When drawing a line, we avoid snapping to the
                                               //   source point
-    KIGFX::ORIGIN_VIEWITEM  m_viewSnapPoint;
-    KIGFX::ORIGIN_VIEWITEM  m_viewSnapLine;
+    KIGFX::SNAP_INDICATOR   m_viewSnapPoint;
     KIGFX::ORIGIN_VIEWITEM  m_viewAxis;
+
+private:
+    // Construction helper - this is what actually shows construction geometry
+    // (if any) on the canvas.
+    KIGFX::CONSTRUCTION_GEOM m_constructionGeomPreview;
+
+    // Construction manager - this is what manages the construction geometry
+    // and deals with updating the construction helper as well as keeping
+    // track of what geometry is "active" for construction purposes.
+    CONSTRUCTION_MANAGER m_constructionManager;
+
+    /// @brief  VIEW_ITEM for visualising anchor points, if enabled
+    std::unique_ptr<KIGFX::ANCHOR_DEBUG> m_anchorDebug;
 };
 
 #endif

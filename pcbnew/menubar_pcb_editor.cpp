@@ -297,7 +297,7 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     placeMenu->Add( PCB_ACTIONS::drawRuleArea );
 
     ACTION_MENU* muwaveSubmenu = new ACTION_MENU( false, selTool );
-    muwaveSubmenu->SetTitle( _( "Add Microwave Shape" ) );
+    muwaveSubmenu->SetTitle( _( "Draw Microwave Shapes" ) );
     muwaveSubmenu->SetIcon( BITMAPS::mw_add_line );
     muwaveSubmenu->Add( PCB_ACTIONS::microwaveCreateLine );
     muwaveSubmenu->Add( PCB_ACTIONS::microwaveCreateGap );
@@ -319,10 +319,10 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
 
     placeMenu->AppendSeparator();
     ACTION_MENU* dimensionSubmenu = new ACTION_MENU( false, selTool );
-    dimensionSubmenu->SetTitle( _( "Add Dimension" ) );
+    dimensionSubmenu->SetTitle( _( "Draw Dimensions" ) );
     dimensionSubmenu->SetIcon( BITMAPS::add_aligned_dimension );
-    dimensionSubmenu->Add( PCB_ACTIONS::drawAlignedDimension );
     dimensionSubmenu->Add( PCB_ACTIONS::drawOrthogonalDimension );
+    dimensionSubmenu->Add( PCB_ACTIONS::drawAlignedDimension );
     dimensionSubmenu->Add( PCB_ACTIONS::drawCenterDimension );
     dimensionSubmenu->Add( PCB_ACTIONS::drawRadialDimension );
     dimensionSubmenu->Add( PCB_ACTIONS::drawLeader );
@@ -347,7 +347,6 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     autoplaceSubmenu->Add( PCB_ACTIONS::autoplaceSelectedComponents );
 
     placeMenu->Add( autoplaceSubmenu );
-
 
     //-- Route Menu ----------------------------------------------------------
     //
@@ -431,6 +430,17 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     {
         toolsMenu->AppendSeparator();
         toolsMenu->Add( PCB_ACTIONS::showPythonConsole );
+    }
+
+    if( ADVANCED_CFG::GetCfg().m_EnableMultichannelTool )
+    {
+        ACTION_MENU* multichannelSubmenu = new ACTION_MENU( false, selTool );
+        multichannelSubmenu->SetTitle( _( "Multi-Channel" ) );
+        multichannelSubmenu->SetIcon( BITMAPS::mode_module );
+        multichannelSubmenu->Add( PCB_ACTIONS::generatePlacementRuleAreas );
+        multichannelSubmenu->Add( PCB_ACTIONS::repeatLayout );
+
+        toolsMenu->Add( multichannelSubmenu );
     }
 
     ACTION_MENU* submenuActionPlugins = new ACTION_MENU( false, selTool );

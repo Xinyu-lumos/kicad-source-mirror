@@ -125,6 +125,14 @@ static LSEQ dlg_layers()
 }
 
 
+// returns a mask of existing layers in dialog list
+static LSET AllExistingLayersInDlgMask()
+{
+    static const LSET saved( dlg_layers() );
+    return saved;
+}
+
+
 PANEL_SETUP_LAYERS::PANEL_SETUP_LAYERS( wxWindow* aParentWindow, PCB_EDIT_FRAME* aFrame ) :
         PANEL_SETUP_LAYERS_BASE( aParentWindow ),
         m_frame( aFrame ),
@@ -240,6 +248,8 @@ bool PANEL_SETUP_LAYERS::TransferDataToWindow()
 
     // Rescue may be enabled, but should not be shown in this dialog
     m_enabledLayers.reset( Rescue );
+
+    m_enabledLayers &= AllExistingLayersInDlgMask();
 
     setCopperLayerCheckBoxes( m_pcb->GetCopperLayerCount() );
 
@@ -765,8 +775,7 @@ LSEQ PANEL_SETUP_LAYERS::getRemovedLayersWithItems()
                 {
                     BOARD_ITEM* item = collector[i];
 
-                    if( dynamic_cast<FOOTPRINT*>( item )
-                        || dynamic_cast<FOOTPRINT*>( item->GetParentFootprint() ) )
+                    if( item->Type() == PCB_FOOTPRINT_T || item->GetParentFootprint() )
                         continue;
 
                     removedLayers.push_back( layer_id );
@@ -908,7 +917,7 @@ void PANEL_SETUP_LAYERS::addUserDefinedLayer( wxCommandEvent& aEvent )
 
     wxCHECK( layer >= User_1 && layer <= User_9, /* void */ );
 
-    LSET newLayer( layer );
+    LSET newLayer( { layer } );
 
     m_enabledLayers |= newLayer;
 

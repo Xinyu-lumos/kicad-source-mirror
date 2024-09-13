@@ -158,6 +158,8 @@ public:
     static TOOL_ACTION filletLines;
     /// Chamfer (i.e. adds a straight line) all selected straight lines by a user defined setback
     static TOOL_ACTION chamferLines;
+    /// Add "dogbone" corners to selected lines to allow routing with a cutter radius
+    static TOOL_ACTION dogboneCorners;
     /// Connect selected shapes, possibly extending or cutting them, or adding extra geometry
     static TOOL_ACTION healShapes;
     /// Extend selected lines to meet at a point
@@ -319,7 +321,8 @@ public:
     static TOOL_ACTION positionRelative;
 
     /// Selection of anchor item for position relative tool
-    static TOOL_ACTION selectpositionRelativeItem;
+    static TOOL_ACTION selectPositionRelativeItem;
+    static TOOL_ACTION selectPositionRelativePoint;
 
     // Display modes
     static TOOL_ACTION showRatsnest;
@@ -374,6 +377,7 @@ public:
     static TOOL_ACTION layerAlphaInc;
     static TOOL_ACTION layerAlphaDec;
     static TOOL_ACTION layerToggle;
+    static TOOL_ACTION layerPairPresetsCycle;
 
     // Group to link all actions that directly select layers
     static TOOL_ACTION_GROUP layerDirectSwitchActions();
@@ -577,7 +581,8 @@ public:
     static TOOL_ACTION ddAppendBoard;
     static TOOL_ACTION ddImportFootprint;
 
-
+    static TOOL_ACTION repeatLayout;
+    static TOOL_ACTION generatePlacementRuleAreas;
 };
 
 class PCB_EVENTS
@@ -585,6 +590,7 @@ class PCB_EVENTS
 public:
     /// Hotkey feedback
     const static TOOL_EVENT SnappingModeChangedByKeyEvent;
+    const static TOOL_EVENT LayerPairPresetChangedByKeyEvent;
 };
 
 #endif

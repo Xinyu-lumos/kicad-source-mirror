@@ -32,6 +32,7 @@
 #include "../color_rgba.h"
 #include "3d_fastmath.h"
 #include "3d_math.h"
+#include <core/thread_pool.h>
 #include <core/profile.h>        // To use GetRunningMicroSecs or another profiling utility
 #include <wx/log.h>
 
@@ -106,7 +107,7 @@ void RENDER_3D_RAYTRACE_BASE::restartRenderState()
 }
 
 
-static inline void SetPixel( GLubyte* p, const COLOR_RGBA& v )
+static inline void SetPixel( uint8_t* p, const COLOR_RGBA& v )
 {
     p[0] = v.c[0];
     p[1] = v.c[1];
@@ -121,7 +122,7 @@ SFVEC4F RENDER_3D_RAYTRACE_BASE::premultiplyAlpha( const SFVEC4F& aInput )
 }
 
 
-void RENDER_3D_RAYTRACE_BASE::render( GLubyte* ptrPBO, REPORTER* aStatusReporter )
+void RENDER_3D_RAYTRACE_BASE::render( uint8_t* ptrPBO, REPORTER* aStatusReporter )
 {
     if( ( m_renderState == RT_RENDER_STATE_FINISH ) || ( m_renderState >= RT_RENDER_STATE_MAX ) )
     {
@@ -136,7 +137,7 @@ void RENDER_3D_RAYTRACE_BASE::render( GLubyte* ptrPBO, REPORTER* aStatusReporter
             // This way it will draw the full buffer but only shows the updated (
             // already calculated) squares
             unsigned int nPixels = m_realBufferSize.x * m_realBufferSize.y;
-            GLubyte* tmp_ptrPBO = ptrPBO + 3;   // PBO is RGBA
+            uint8_t* tmp_ptrPBO = ptrPBO + 3;   // PBO is RGBA
 
             for( unsigned int i = 0; i < nPixels; ++i )
             {
@@ -181,55 +182,42 @@ void RENDER_3D_RAYTRACE_BASE::render( GLubyte* ptrPBO, REPORTER* aStatusReporter
 }
 
 
-void RENDER_3D_RAYTRACE_BASE::renderTracing( GLubyte* ptrPBO, REPORTER* aStatusReporter )
+void RENDER_3D_RAYTRACE_BASE::renderTracing( uint8_t* ptrPBO, REPORTER* aStatusReporter )
 {
     m_isPreview = false;
 
     auto startTime = std::chrono::steady_clock::now();
-    bool breakLoop = false;
-
     std::atomic<size_t> numBlocksRendered( 0 );
     std::atomic<size_t> currentBlock( 0 );
-    std::atomic<size_t> threadsFinished( 0 );
 
-    size_t parallelThreadCount = std::min<size_t>(
-            std::max<size_t>( std::thread::hardware_concurrency(), 2 ),
-            m_blockPositions.size() );
+    thread_pool& tp = GetKiCadThreadPool();
+    const int timeLimit = m_blockPositions.size() > 40000 ? 750 : 400;
 
-    const int timeLimit = m_blockPositions.size() > 40000 ? 500 : 200;
-
-    for( size_t ii = 0; ii < parallelThreadCount; ++ii )
+    auto processBlocks = [&]()
     {
-        std::thread t = std::thread( [&]()
+        for( size_t iBlock = currentBlock.fetch_add( 1 );
+                    iBlock < m_blockPositions.size();
+                    iBlock = currentBlock.fetch_add( 1 ) )
         {
-            for( size_t iBlock = currentBlock.fetch_add( 1 );
-                 iBlock < m_blockPositions.size() && !breakLoop;
-                 iBlock = currentBlock.fetch_add( 1 ) )
+            if( !m_blockPositionsWasProcessed[iBlock] )
             {
-                if( !m_blockPositionsWasProcessed[iBlock] )
-                {
-                    renderBlockTracing( ptrPBO, iBlock );
-                    numBlocksRendered++;
-                    m_blockPositionsWasProcessed[iBlock] = 1;
-
-                    // Check if it spend already some time render and request to exit
-                    // to display the progress
-                    auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now() - startTime );
-
-                    if( diff.count() > timeLimit )
-                        breakLoop = true;
-                }
+                renderBlockTracing( ptrPBO, iBlock );
+                m_blockPositionsWasProcessed[iBlock] = 1;
+                numBlocksRendered++;
             }
 
-            threadsFinished++;
-        } );
+            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - startTime );
 
-        t.detach();
-    }
+            if( diff.count() > timeLimit )
+                break;
+        }
+    };
 
-    while( threadsFinished < parallelThreadCount )
-        std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+    for( size_t i = 0; i < tp.get_thread_count() + 1; ++i )
+        tp.push_task( processBlocks );
+
+    tp.wait_for_tasks();
 
     m_blockRenderProgressCount += numBlocksRendered;
 
@@ -295,7 +283,7 @@ SFVEC4F ConvertSRGBAToLinear( const SFVEC4F& aSRGBAcolor )
 #endif
 
 
-void RENDER_3D_RAYTRACE_BASE::renderFinalColor( GLubyte* ptrPBO, const SFVEC4F& rgbColor,
+void RENDER_3D_RAYTRACE_BASE::renderFinalColor( uint8_t* ptrPBO, const SFVEC4F& rgbColor,
                                          bool applyColorSpaceConversion )
 {
     SFVEC4F color = rgbColor;
@@ -476,7 +464,7 @@ void RENDER_3D_RAYTRACE_BASE::renderAntiAliasPackets( const SFVEC4F* aBgColorY,
 #define DISP_FACTOR 0.075f
 
 
-void RENDER_3D_RAYTRACE_BASE::renderBlockTracing( GLubyte* ptrPBO, signed int iBlock )
+void RENDER_3D_RAYTRACE_BASE::renderBlockTracing( uint8_t* ptrPBO, signed int iBlock )
 {
     // Initialize ray packets
     const SFVEC2UI& blockPos = m_blockPositions[iBlock];
@@ -535,7 +523,7 @@ void RENDER_3D_RAYTRACE_BASE::renderBlockTracing( GLubyte* ptrPBO, signed int iB
 
             for( unsigned int x = 0; x < RAYPACKET_DIM; ++x )
             {
-                GLubyte* ptr = &ptrPBO[( yConst + x ) * 4];
+                uint8_t* ptr = &ptrPBO[( yConst + x ) * 4];
 
                 renderFinalColor( ptr, outColor, isFinalColor );
             }
@@ -628,7 +616,7 @@ void RENDER_3D_RAYTRACE_BASE::renderBlockTracing( GLubyte* ptrPBO, signed int iB
     }
 
     // Copy results to the next stage
-    GLubyte* ptr = &ptrPBO[( blockPos.x + ( blockPos.y * m_realBufferSize.x ) ) * 4];
+    uint8_t* ptr = &ptrPBO[( blockPos.x + ( blockPos.y * m_realBufferSize.x ) ) * 4];
 
     const uint32_t ptrInc = ( m_realBufferSize.x - RAYPACKET_DIM ) * 4;
 
@@ -687,7 +675,7 @@ void RENDER_3D_RAYTRACE_BASE::renderBlockTracing( GLubyte* ptrPBO, signed int iB
 }
 
 
-void RENDER_3D_RAYTRACE_BASE::postProcessShading( GLubyte* /* ptrPBO */, REPORTER* aStatusReporter )
+void RENDER_3D_RAYTRACE_BASE::postProcessShading( uint8_t* /* ptrPBO */, REPORTER* aStatusReporter )
 {
     if( m_boardAdapter.m_Cfg->m_Render.raytrace_post_processing )
     {
@@ -739,7 +727,7 @@ void RENDER_3D_RAYTRACE_BASE::postProcessShading( GLubyte* /* ptrPBO */, REPORTE
 }
 
 
-void RENDER_3D_RAYTRACE_BASE::postProcessBlurFinish( GLubyte* ptrPBO, REPORTER* /* aStatusReporter */ )
+void RENDER_3D_RAYTRACE_BASE::postProcessBlurFinish( uint8_t* ptrPBO, REPORTER* /* aStatusReporter */ )
 {
     if( m_boardAdapter.m_Cfg->m_Render.raytrace_post_processing )
     {
@@ -756,7 +744,7 @@ void RENDER_3D_RAYTRACE_BASE::postProcessBlurFinish( GLubyte* ptrPBO, REPORTER* 
                 for( size_t y = nextBlock.fetch_add( 1 ); y < m_realBufferSize.y;
                      y = nextBlock.fetch_add( 1 ) )
                 {
-                    GLubyte* ptr = &ptrPBO[ y * m_realBufferSize.x * 4 ];
+                    uint8_t* ptr = &ptrPBO[ y * m_realBufferSize.x * 4 ];
 
                     for( signed int x = 0; x < (int)m_realBufferSize.x; ++x )
                     {
@@ -796,7 +784,7 @@ void RENDER_3D_RAYTRACE_BASE::postProcessBlurFinish( GLubyte* ptrPBO, REPORTER* 
 }
 
 
-void RENDER_3D_RAYTRACE_BASE::renderPreview( GLubyte* ptrPBO )
+void RENDER_3D_RAYTRACE_BASE::renderPreview( uint8_t* ptrPBO )
 {
     m_isPreview = true;
 
@@ -1351,7 +1339,7 @@ void RENDER_3D_RAYTRACE_BASE::renderPreview( GLubyte* ptrPBO )
                         }
 
                         // Set pixel colors
-                        GLubyte* ptr =
+                        uint8_t* ptr =
                                 &ptrPBO[( 4 * x + m_blockPositionsFast[iBlock].x
                                           + m_realBufferSize.x
                                           * ( m_blockPositionsFast[iBlock].y + 4 * y ) ) * 4];
@@ -1721,28 +1709,47 @@ void RENDER_3D_RAYTRACE_BASE::initializeBlockPositions()
     const int blocks_y = m_realBufferSize.y / RAYPACKET_DIM;
     m_blockPositions.reserve( blocks_x * blocks_y );
 
-    for( int x = 0; x < blocks_x; ++x )
+    // Hilbert curve position calculation
+    // modified from Matters Computational, Springer 2011
+    // GPLv3, Copyright Joerg Arndt
+    constexpr auto hilbert_get_pos = []( size_t aT, size_t& aX, size_t& aY )
     {
-        for( int y = 0; y < blocks_y; ++y )
+        static const size_t htab[] = { 0b0010, 0b0100, 0b1100, 0b1001, 0b1111, 0b0101,
+                                       0b0001, 0b1000, 0b0000, 0b1010, 0b1110, 0b0111,
+                                       0b1101, 0b1011, 0b0011, 0b0110 };
+        static const size_t size = sizeof( size_t ) * 8;
+        size_t xv = 0;
+        size_t yv = 0;
+        size_t c01 = 0;
+
+        for( size_t i = 0; i < ( size / 2 ); ++i )
+        {
+            size_t abi = aT >> ( size - 2 );
+            aT <<= 2;
+
+            size_t st = htab[( c01 << 2 ) | abi];
+            c01 = st & 3;
+
+            yv = ( yv << 1 ) | ( ( st >> 2 ) & 1 );
+            xv = ( xv << 1 ) | ( st >> 3 );
+        }
+
+        aX = xv;
+        aY = yv;
+    };
+
+    size_t total_blocks = blocks_x * blocks_y;
+    size_t pos = 0;
+    size_t x = 0;
+    size_t y = 0;
+
+    while( m_blockPositions.size() < total_blocks )
+    {
+        hilbert_get_pos( pos++, x, y );
+
+        if( x < blocks_x && y < blocks_y )
             m_blockPositions.emplace_back( x * RAYPACKET_DIM, y * RAYPACKET_DIM );
     }
-
-    const SFVEC2UI center( m_realBufferSize.x / 2, m_realBufferSize.y / 2 );
-    std::sort( m_blockPositions.begin(), m_blockPositions.end(),
-            [&]( const SFVEC2UI& a, const SFVEC2UI& b )
-            {
-                // Sort order: inside out.
-                float distanceA = distance( a, center );
-                float distanceB = distance( b, center );
-
-                if( distanceA != distanceB )
-                    return distanceA < distanceB;
-
-                if( a[0] != b[0] )
-                    return a[0] < b[0];
-
-                return a[1] < b[1];
-            } );
 
     // Create m_shader buffer
     delete[] m_shaderBuffer;

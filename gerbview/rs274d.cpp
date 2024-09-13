@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2024 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,14 +25,15 @@
  * @brief functions to read the rs274d commands from a rs274d/rs274x file
  */
 
+#include <cmath>
 
+#include <geometry/geometry_utils.h>
 #include <gerbview.h>
 #include <gerbview_frame.h>
-#include <trigo.h>
 #include <gerber_file_image.h>
+#include <trigo.h>
 #include <X2_gerber_attributes.h>
 
-#include <cmath>
 
 /* Gerber: NOTES about some important commands found in RS274D and RS274X (G codes).
  * Some are now deprecated, but deprecated commands must be known by the Gerber reader
@@ -368,9 +369,12 @@ static void fillArcPOLY( GERBER_DRAW_ITEM* aGbrItem, const VECTOR2I& aStart, con
 
     EDA_ANGLE arc_angle = start_angle - end_angle;
 
-    // Approximate arc by 36 segments per 360 degree
-    EDA_ANGLE increment_angle = ANGLE_360 / 36;
-    int count = std::abs( arc_angle.AsDegrees() / increment_angle.AsDegrees() );
+    // Approximate arc by segments with a approximation error = err_max
+    // a max err = 5 microns looks good
+    const int approx_err_max =  gerbIUScale.mmToIU( 0.005 );
+    int radius = VECTOR2I( aStart - rel_center ).EuclideanNorm();
+    int count = GetArcToSegmentCount( radius, approx_err_max, arc_angle );
+    EDA_ANGLE increment_angle = std::abs( arc_angle ) / count;
 
     if( aGbrItem->m_ShapeAsPolygon.OutlineCount() == 0 )
         aGbrItem->m_ShapeAsPolygon.NewOutline();
